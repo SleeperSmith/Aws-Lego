@@ -1,0 +1,67 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "A simple empty VPC.",
+
+  "Parameters" : {
+    "VpcPrefix" : {
+      "Description" : "Prefix for the VPC",
+      "Type" : "String",
+      "Default" : "11.0"
+    }
+  },
+
+  "Resources" : {
+
+    "Vpc" : {
+      "Type" : "AWS::EC2::VPC",
+      "Properties" : {
+        "CidrBlock" :  { "Fn::Join" : [ "", [
+		  { "Ref" : "VpcPrefix" }, ".0.0/16"
+		]]},
+		"Tags" : []
+      }
+    },
+
+    "InternetGateway" : {
+      "Type" : "AWS::EC2::InternetGateway",
+      "Properties" : {
+        "Tags" : []
+      }
+    },
+
+    "AttachGateway" : {
+       "Type" : "AWS::EC2::VPCGatewayAttachment",
+       "Properties" : {
+         "VpcId" : { "Ref" : "Vpc" },
+         "InternetGatewayId" : { "Ref" : "InternetGateway" }
+       }
+    },
+
+    "PublicRouteTable" : {
+      "Type" : "AWS::EC2::RouteTable",
+      "Properties" : {
+        "VpcId" : {"Ref" : "Vpc"},
+        "Tags" : []
+      }
+    },
+
+    "PublicRoute" : {
+      "Type" : "AWS::EC2::Route",
+      "DependsOn" : "AttachGateway",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "PublicRouteTable" },
+        "DestinationCidrBlock" : "0.0.0.0/0",
+        "GatewayId" : { "Ref" : "InternetGateway" }
+      }
+    }
+	
+  },
+
+  "Outputs" : {
+    "VpcId" : {
+      "Description" : "Id of the VPC created.",
+      "Value" :  { "Ref" : "Vpc" }
+    }
+  }
+}

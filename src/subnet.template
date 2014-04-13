@@ -1,0 +1,47 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "A simple empty subnet",
+
+  "Parameters" : {
+
+    "vpcInVpcPrefix" : {
+      "Description" : "Prefix for the VPC",
+      "Type" : "String",
+      "Default" : "11.0"
+    },
+
+    "vpcOutVpcId" : {
+      "Description" : "VPC id",
+      "Type" : "String"
+    },
+
+    "SubnetPrefix" : {
+      "Description" : "Number of EC2 instances to launch",
+      "Type" : "Number",
+      "Default" : "0"
+    }
+  },
+
+  "Resources" : {
+
+    "Subnet" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "VpcId" : { "Ref" : "vpcOutVpcId" },
+        "CidrBlock" : { "Fn::Join" : [ "", [
+		  { "Ref" : "vpcInVpcPrefix" }, ".", { "Ref" : "SubnetPrefix" }, ".0/24"
+		]]},
+        "Tags" : []
+      }
+    }
+
+  },
+
+  "Outputs" : {
+    "URL" : {
+      "Description" : "Id of the subnet created",
+      "Value" :  { "Ref" : "Subnet" }
+    }
+  }
+}
