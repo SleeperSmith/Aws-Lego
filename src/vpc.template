@@ -55,13 +55,17 @@
         "GatewayId" : { "Ref" : "InternetGateway" }
       }
     }
-	
   },
 
   "Outputs" : {
     "VpcId" : {
       "Description" : "Id of the VPC created.",
       "Value" :  { "Ref" : "Vpc" }
+    },
+
+	"PublicRouteTableId" : {
+      "Description" : "Id of the route table with the public route and internet gateway. Note this is NOT the default route table for the VPC.",
+      "Value" :  { "Ref" : "PublicRouteTable" }
     }
   }
 }

@@ -1,0 +1,81 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "A simple empty subnet",
+
+  "Parameters" : {
+
+    "vpcInVpcPrefix" : {
+      "Description" : "Prefix for the VPC",
+      "Type" : "String"
+    },
+
+    "vpcOutVpcId" : {
+      "Description" : "VPC id",
+      "Type" : "String"
+    },
+
+    "Subnet1Prefix" : {
+      "Description" : "Prefix for subnet 1. The number y in x.x.y.x",
+      "Type" : "Number",
+      "Default" : "0"
+    },
+
+    "Subnet2Prefix" : {
+      "Description" : "Prefix for subnet 2. The number y in x.x.y.x",
+      "Type" : "Number",
+      "Default" : "1"
+    },
+
+	"TemplateBaseUrl": {
+	  "Description" : "Base url where this template was launched from",
+      "Type" : "String"
+	}
+  },
+
+  "Resources" : {
+
+    "Subnet1": {
+	  "Type" : "AWS::CloudFormation::Stack",
+      "Properties" : {
+        "Parameters" : {
+		  "vpcInVpcPrefix": { "Ref": "vpcInVpcPrefix" },
+		  "vpcOutVpcId": { "Ref": "vpcOutVpcId" },
+		  "SubnetPrefix": { "Ref": "Subnet1Prefix" },
+		  "AzIndex": "0"
+		},
+        "TemplateURL" : { "Fn::Join" : [ "", [
+		  { "Ref" : "TemplateBaseUrl" }, "subnet.template"
+		]]}
+	  }
+    },
+
+	"Subnet2": {
+	  "Type" : "AWS::CloudFormation::Stack",
+      "Properties" : {
+        "Parameters" : {
+		  "vpcInVpcPrefix": { "Ref": "vpcInVpcPrefix" },
+		  "vpcOutVpcId": { "Ref": "vpcOutVpcId" },
+		  "SubnetPrefix": { "Ref": "Subnet2Prefix" },
+		  "AzIndex": "1"
+		},
+        "TemplateURL" : { "Fn::Join" : [ "", [
+		  { "Ref" : "TemplateBaseUrl" }, "subnet.template"
+		]]}
+	  }
+    }
+
+  },
+
+  "Outputs" : {
+    "Subnet1" : {
+      "Description" : "Stack id of subnet1 created",
+      "Value" :  { "Ref" : "Subnet1" }
+    },
+
+	"Subnet2" : {
+      "Description" : "Stack id of subnet2 created",
+      "Value" :  { "Ref" : "Subnet2" }
+    }
+  }
+}

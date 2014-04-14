@@ -1,0 +1,72 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "A simple empty VPC.",
+
+  "Parameters" : {
+
+	"BgpAsn": {
+	  "Description": "ASN for the gateway",
+	  "Type": "Number",
+	  "Default": "65000",
+	  "MinValue": "0"
+	},
+
+	"CustomerIpsecIp": {
+	  "Description": "WAN ip address of the ipsec tunnel.",
+	  "Type": "String"
+	},
+
+	"StaticRoutesOnly": {
+	  "Description" : "If true, the routetable has to use static routes, if not route propogation can be used.",
+      "Type" : "String",
+      "Default": "true",
+	  "AllowedValues": ["true","false"]
+	}
+
+  },
+
+  "Resources" : {
+
+    "VpnGateway" : {
+	  "Type" : "AWS::EC2::VPNGateway",
+	  "Properties" : {
+	    "Type" : "ipsec.1",
+	    "Tags" : []
+	  }
+	},
+
+	"CustomerGateway": {
+	   "Type" : "AWS::EC2::CustomerGateway",
+	   "Properties" : {
+		  "BgpAsn": { "Ref": "BgpAsn" },
+		  "IpAddress" : { "Ref": "CustomerIpsecIp" },
+		  "Type" : "ipsec.1",
+		  "Tags": []
+	   }
+	},
+
+    "VpnConnection" : {
+	  "Type" : "AWS::EC2::VPNConnection",
+	  "Properties" : {
+		"Type" : "ipsec.1",
+		"CustomerGatewayId": { "Ref": "CustomerGateway" },
+		"StaticRoutesOnly": { "Ref": "StaticRoutesOnly" },
+		"VpnGatewayId": { "Ref": "VpnGateway" },
+		"Tags" : []
+	  }
+	} 
+  },
+
+  "Outputs" : {
+    "VpnGateway" : {
+      "Description" : "Id of the VPN Gateway created.",
+      "Value" :  { "Ref" : "VpnGateway" }
+    },
+
+	"VpnConnection" : {
+      "Description" : "Id of the VPN Connection created.",
+      "Value" :  { "Ref" : "VpnConnection" }
+    }
+  }
+}

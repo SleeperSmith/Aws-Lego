@@ -7,8 +7,7 @@
 
     "vpcInVpcPrefix" : {
       "Description" : "Prefix for the VPC",
-      "Type" : "String",
-      "Default" : "11.0"
+      "Type" : "String"
     },
 
     "vpcOutVpcId" : {
@@ -17,6 +16,12 @@
     },
 
     "SubnetPrefix" : {
+      "Description" : "Number of EC2 instances to launch",
+      "Type" : "Number",
+      "Default" : "0"
+    },
+
+	"AzIndex" : {
       "Description" : "Number of EC2 instances to launch",
       "Type" : "Number",
       "Default" : "0"
@@ -32,14 +37,16 @@
         "CidrBlock" : { "Fn::Join" : [ "", [
 		  { "Ref" : "vpcInVpcPrefix" }, ".", { "Ref" : "SubnetPrefix" }, ".0/24"
 		]]},
+        "AvailabilityZone": { "Fn::Select": [
+		  {"Ref": "AzIndex"}, { "Fn::GetAZs": "" }
+		]},
         "Tags" : []
       }
     }
-
   },
 
   "Outputs" : {
-    "URL" : {
+    "SubnetId" : {
       "Description" : "Id of the subnet created",
       "Value" :  { "Ref" : "Subnet" }
     }
