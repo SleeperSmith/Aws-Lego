@@ -68,14 +68,14 @@
   },
 
   "Outputs" : {
-    "Subnet1" : {
+    "Subnet1Id" : {
       "Description" : "Stack id of subnet1 created",
-      "Value" :  { "Ref" : "Subnet1" }
+      "Value": { "Fn::GetAtt": ["Subnet1","Outputs.Subnet"] }
     },
 
-	"Subnet2" : {
+	"Subnet2Id" : {
       "Description" : "Stack id of subnet2 created",
-      "Value" :  { "Ref" : "Subnet2" }
+      "Value": { "Fn::GetAtt": ["Subnet2","Outputs.Subnet"] }
     }
   }
 }
