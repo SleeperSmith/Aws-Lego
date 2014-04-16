@@ -1,5 +1,7 @@
 ﻿# Name > Environment > LogicalUnit
 
+Write-Host AWS-Lego loaded.
+
 function New-StackLink(
         [Parameter(
             Mandatory = $true)]
@@ -17,10 +19,10 @@ function New-StackLink(
     # Metadata
     Write-Host == Metadata ==
     $templateUrlSegments = $TemplateUrl.Split('/')
-    $templateName = $templateUrlSegments[$templateUrlSegments.Length - 1].Split('.')[0]
+    $templateName = $templateUrlSegments[$templateUrlSegments.Length - 1]
     Write-Host CloudFormation template name: $templateName
     if ([string]::IsNullOrWhiteSpace($StackName)) {
-        $StackName = $templateName
+        $StackName = $templateName.Split('.')[0]
     }
     Write-Host CloudFormation stack name: $StackName
     $templateUrlSegments[$templateUrlSegments.Count-1] = ""
@@ -57,22 +59,26 @@ function New-StackLink(
         } | % {
             $_.Value
         } | Select-Object -First 1
+        
+        foreach($cfnStackTemplateSegment in $cfnStackTemplateName.Split('.')) {
 
-        $cfnStack[0].Parameters | % {
-            $key = $cfnStackTemplateName + "In" + $_.Key
-            if ($cfnNewLaunchTargetParameterKeys.Contains($key)) {
-                $StackParameters += @{
-                    "Key" = $key; "Value" = $_.Value
+            $cfnStack[0].Parameters | % {
+                $key = $cfnStackTemplateSegment + "In" + $_.Key
+                if ($cfnNewLaunchTargetParameterKeys.Contains($key)) {
+                    $StackParameters += @{
+                        "Key" = $key; "Value" = $_.Value
+                    }
                 }
             }
-        }
-        $cfnStack[0].Outputs | % {
-            $key = $cfnStackTemplateName + "Out" + $_.OutputKey
-            if ($cfnNewLaunchTargetParameterKeys.Contains($key)) {
-                $StackParameters += @{
-                    "Key" = $key; "Value" = $_.OutputValue
+            $cfnStack[0].Outputs | % {
+                $key = $cfnStackTemplateSegment + "Out" + $_.OutputKey
+                if ($cfnNewLaunchTargetParameterKeys.Contains($key)) {
+                    $StackParameters += @{
+                        "Key" = $key; "Value" = $_.OutputValue
+                    }
                 }
             }
+
         }
     }
 
