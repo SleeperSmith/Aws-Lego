@@ -66,6 +66,11 @@
 	"PublicRouteTableId" : {
       "Description" : "Id of the route table with the public route and internet gateway. Note this is NOT the default route table for the VPC.",
       "Value" :  { "Ref" : "PublicRouteTable" }
-    }
+    },
+
+	"Igw": {
+	  "Description" : "Id of the internet gateway attached to the VPC and public route table.",
+      "Value" :  { "Ref" : "InternetGateway" }
+	}
   }
 }

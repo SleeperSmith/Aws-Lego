@@ -34,48 +34,55 @@
   },
 
   "Resources" : {
-
-    "Subnet1": {
+	"Subnets": {
 	  "Type" : "AWS::CloudFormation::Stack",
       "Properties" : {
         "Parameters" : {
 		  "vpcInVpcPrefix": { "Ref": "vpcInVpcPrefix" },
 		  "vpcOutVpcId": { "Ref": "vpcOutVpcId" },
-		  "SubnetPrefix": { "Ref": "Subnet1Prefix" },
-		  "AzIndex": "0"
+		  "Subnet1Prefix": { "Ref": "Subnet1Prefix" },
+		  "Subnet2Prefix": { "Ref": "Subnet2Prefix" },
+		  "TemplateBaseUrl": { "Ref": "TemplateBaseUrl" }
 		},
         "TemplateURL" : { "Fn::Join" : [ "", [
-		  { "Ref" : "TemplateBaseUrl" }, "subnet.template"
+		  { "Ref" : "TemplateBaseUrl" }, "subnet.twoAz.template"
 		]]}
 	  }
     },
 
-	"Subnet2": {
-	  "Type" : "AWS::CloudFormation::Stack",
-      "Properties" : {
-        "Parameters" : {
-		  "vpcInVpcPrefix": { "Ref": "vpcInVpcPrefix" },
-		  "vpcOutVpcId": { "Ref": "vpcOutVpcId" },
-		  "SubnetPrefix": { "Ref": "Subnet2Prefix" },
-		  "AzIndex": "1"
-		},
-        "TemplateURL" : { "Fn::Join" : [ "", [
-		  { "Ref" : "TemplateBaseUrl" }, "subnet.template"
-		]]}
-	  }
-    }
+	"SubnetGroup": {
+	   "Type" : "AWS::RDS::DBSubnetGroup",
+	   "Properties" : {
+		  "DBSubnetGroupDescription": "A subnet db group created over the depending two subnets.",
+		  "SubnetIds" : [
+			{ "Fn::GetAtt": ["Subnets","Outputs.Subnet1Id"] },
+			{ "Fn::GetAtt": ["Subnets","Outputs.Subnet2Id"] }
+		  ],
+		  "Tags" : []
+	   }
+	}  
 
   },
 
   "Outputs" : {
+    "SubnetId" : {
+      "Description" : "Stack id of subnet2 created",
+      "Value": { "Fn::GetAtt": ["Subnets","Outputs.SubnetId"] }
+    },
+
     "Subnet1Id" : {
       "Description" : "Stack id of subnet1 created",
-      "Value": { "Fn::GetAtt": ["Subnet1","Outputs.SubnetId"] }
+      "Value": { "Fn::GetAtt": ["Subnets","Outputs.Subnet1Id"] }
     },
 
 	"Subnet2Id" : {
       "Description" : "Stack id of subnet2 created",
-      "Value": { "Fn::GetAtt": ["Subnet2","Outputs.SubnetId"] }
+      "Value": { "Fn::GetAtt": ["Subnets","Outputs.Subnet2Id"] }
+    },
+
+    "SubnetGroupId" : {
+      "Description" : "Stack id of subnet1 created",
+      "Value": { "Ref": "SubnetGroup" }
     }
   }
 }
