@@ -1,42 +1,44 @@
-﻿# Name > Environment > LogicalUnit
+﻿$templateNameTag = "TemplateName"
+# Name > Environment > LogicalUnit
 
-Write-Host AWS-Lego loaded.
+function InternalAddParameter {
+    param(
+        [Parameter(Mandatory=$true)]
+        [System.Collections.Generic.List[string]]$ParameterKeys,
+        #[Parameter(Mandatory=$true)]
+        [System.Collections.Generic.List[object]]$Parameters = @(),
+        [Parameter(Mandatory=$true)]
+        [string]$Key,
+        [Parameter(Mandatory=$true)]
+        [string]$Value
+    )
 
-function New-StackLink(
+    if ($ParameterKeys.Contains($Key) -and !($Parameters.Contains($Key))) {
+        $Parameters.Add(@{"Key" = $Key; "Value" = $Value})
+    }
+}
+
+function Get-StackLinkParameters {
+    param(
         [Parameter(
             Mandatory = $true)]
         [string]$TemplateUrl,
 
-        [string]$StackName,
-        $Tags = @(),
-        $StackParameters = @(),
+        [string]$TemplateUrlBaseParameterKey = "TemplateBaseUrl",
+        $StackParameters = (New-Object 'System.Collections.Generic.List[object]'),
+        [string[]]$PriorityStackNames = @()
+    )
 
-        [string]$TemplateUrlBaseParameterKey = "TemplateBaseUrl"
-    ) {
-    Write-Host
-    Write-Host "## Start New-StackLink ##"
-
-    # Metadata
-    Write-Host == Metadata ==
     $templateUrlSegments = $TemplateUrl.Split('/')
-    $templateName = $templateUrlSegments[$templateUrlSegments.Length - 1]
-    Write-Host CloudFormation template name: $templateName
-    if ([string]::IsNullOrWhiteSpace($StackName)) {
-        $StackName = $templateName.Split('.')[0]
-    }
-    Write-Host CloudFormation stack name: $StackName
     $templateUrlSegments[$templateUrlSegments.Count-1] = ""
     $templateUrlBase = [string]::Join("/", $templateUrlSegments)
-    Write-Host CloudFormation template base path: $templateUrlBase
 
     $cfnNewLaunchTarget = Test-CFNTemplate -TemplateURL $TemplateUrl
     $cfnNewLaunchTargetParameterKeys = $cfnNewLaunchTarget.Parameters | % {
         $_.ParameterKey
     }
 
-    # Get existing stacks
     Write-Host == Existing Stacks ==
-    $templateNameTag = "TemplateName"
     $cfnStacks = Get-CFNStack | ? {
         ($_.Tags | ? { $_.Key -eq $templateNameTag }).Count -eq 1
     }
@@ -46,11 +48,32 @@ function New-StackLink(
         Write-Host $([string]::Join(", ", ($cfnStacks | % { $_.StackName })))
     }
 
-    # Add dependant parameters
     Write-Host == Parameters ==
-    if ($cfnNewLaunchTargetParameterKeys.Contains($TemplateUrlBaseParameterKey)) {
-        $StackParameters += @{
-            "Key" = $TemplateUrlBaseParameterKey; "Value" = $templateUrlBase
+    InternalAddParameter -ParameterKeys $cfnNewLaunchTargetParameterKeys `
+        -Parameters $StackParameters -Key $TemplateUrlBaseParameterKey -Value $templateUrlBase
+
+    $priorityCfnStack = $cfnStacks | ? {
+        $PriorityStackNames.Contains($_.StackName)
+    }
+    foreach($cfnStack in $priorityCfnStack) {
+        $cfnStackTemplateName = $cfnStack.Tags | ? {
+            $_.Key -eq $templateNameTag
+        } | % {
+            $_.Value
+        } | Select-Object -First 1
+        
+        foreach($cfnStackTemplateSegment in $cfnStackTemplateName.Split('.')) {
+
+            $cfnStack[0].Parameters | % {
+                $key = $cfnStackTemplateSegment + "In" + $_.Key
+                InternalAddParameter -ParameterKeys $cfnNewLaunchTargetParameterKeys `
+                    -Parameters $StackParameters -Key $key -Value $_.Value
+            }
+            $cfnStack[0].Outputs | % {
+                $key = $cfnStackTemplateSegment + "Out" + $_.OutputKey
+                InternalAddParameter -ParameterKeys $cfnNewLaunchTargetParameterKeys `
+                    -Parameters $StackParameters -Key $key -Value $_.OutputValue
+            }
         }
     }
     foreach($cfnStack in $cfnStacks) {
@@ -64,31 +87,68 @@ function New-StackLink(
 
             $cfnStack[0].Parameters | % {
                 $key = $cfnStackTemplateSegment + "In" + $_.Key
-                if ($cfnNewLaunchTargetParameterKeys.Contains($key)) {
-                    $StackParameters += @{
-                        "Key" = $key; "Value" = $_.Value
-                    }
-                }
+                InternalAddParameter -ParameterKeys $cfnNewLaunchTargetParameterKeys `
+                    -Parameters $StackParameters -Key $key -Value $_.Value
             }
             $cfnStack[0].Outputs | % {
                 $key = $cfnStackTemplateSegment + "Out" + $_.OutputKey
-                if ($cfnNewLaunchTargetParameterKeys.Contains($key)) {
-                    $StackParameters += @{
-                        "Key" = $key; "Value" = $_.OutputValue
-                    }
-                }
+                InternalAddParameter -ParameterKeys $cfnNewLaunchTargetParameterKeys `
+                    -Parameters $StackParameters -Key $key -Value $_.OutputValue
             }
-
         }
     }
-
     $StackParameters | % {
         Write-Host ">" $_["Key"]: $_["Value"]
     }
 
+    $result = New-Object Object
+    $result | Add-Member -MemberType NoteProperty -Name TemplateUrl -Value $TemplateUrl
+    $result | Add-Member -MemberType NoteProperty -Name StackParameters -Value $StackParameters
+
+    return $result
+}
+
+function Upsert-StackLink(
+        [parameter(
+            Mandatory=$true,
+            ValueFromPipelineByPropertyName=$true)]
+        [string]$TemplateUrl,
+        [parameter(
+            Mandatory=$true,
+            ValueFromPipelineByPropertyName=$true)]
+        $StackParameters = @(),
+
+        [string]$StackName,
+        $Tags = @(),
+        [bool]$UpdateExisting = $true
+    ) {
+
+    Write-Host
+    Write-Host "## Start New-StackLink ##"
+
+    # Metadata
+    Write-Host == Metadata ==
+    $templateUrlSegments = $TemplateUrl.Split('/')
+    $templateName = $templateUrlSegments[$templateUrlSegments.Length - 1]
+    Write-Host CloudFormation template name: $templateName
+    if ([string]::IsNullOrWhiteSpace($StackName)) {
+        $StackName = $templateName.Split('.')[0]
+    }
+    Write-Host CloudFormation stack name: $StackName
+
+    $cfnNewLaunchTarget = Test-CFNTemplate -TemplateURL $TemplateUrl
+
     Write-Host == Create Stack ==    
     $Tags += @{"Key" = $templateNameTag; "Value" = $templateName}
-    $stackId = New-CFNStack -StackName $StackName -Parameters $StackParameters -TemplateURL $TemplateUrl -Tags $tags
+    
+    $existingStack = $cfnStacks | ? {
+        $_.StackName -eq "private-subnet"
+    }
+    if ($existingStack.Count -eq 0) {
+        $stackId = New-CFNStack -StackName $StackName -Parameters $StackParameters -TemplateURL $TemplateUrl -Tags $tags
+    } elseif ($UpdateExisting) {
+        $stackId = Update-CFNStack -StackName $StackName -Parameters $StackParameters -TemplateURL $TemplateUrl
+    }
     Write-Host StackArn: $stackId
     Write-Host "## End New-StackLink ##"
     return $stackId
@@ -117,3 +177,9 @@ function Wait-StackLink(
     }
     Write-Host "## End Wait-StackLink ##"
 }
+
+Write-Host AWS-Lego loaded.
+
+Get-StackLinkParameters https://s3-ap-southeast-2.amazonaws.com/bc-deployment/Temp/subnet.template |
+    Upsert-StackLink
+
