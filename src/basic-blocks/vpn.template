@@ -20,7 +20,7 @@
 	"StaticRoutesOnly": {
 	  "Description" : "If true, the routetable has to use static routes, if not route propogation can be used.",
       "Type" : "String",
-      "Default": "true",
+      "Default": "false",
 	  "AllowedValues": ["true","false"]
 	}
 
