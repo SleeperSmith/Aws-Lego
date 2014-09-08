@@ -1,0 +1,380 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+
+	"Description": "A template to launch elasticsearch cluster.",
+
+	"Parameters": {
+		"KeyPairName": {
+			"Description": "Name of an existing EC2 KeyPair",
+			"Default": "none-prod",
+			"Type": "String"
+		},
+		"MasterInstanceType" : {
+			"Description" : "Go master server EC2 instance type",
+			"Type" : "String",
+			"Default" : "t2.small",
+			"AllowedValues": [
+				"t2.small",
+				"t2.medium",
+				"m3.medium",
+				"m3.large",
+				"m3.xlarge",
+				"m3.2xlarge"
+			],
+			"ConstraintDescription" : "must be a valid EC2 instance type."
+		},
+		"MasterClusterAmi": {
+			"Description": "AMI to use. Note Ubuntu is prefered.",
+			"Default": "ami-fddabdc7",
+			"Type": "String"
+		},
+
+		"AgentInstanceType" : {
+			"Description" : "WebServer EC2 instance type",
+			"Type" : "String",
+			"Default" : "m3.medium",
+			"AllowedValues": [
+				"m3.medium",
+				"m3.large",
+				"m3.xlarge",
+				"m3.2xlarge",
+				"r3.large",
+				"r3.xlarge",
+				"r3.2xlarge",
+				"r3.4xlarge",
+				"r3.8xlarge"
+			],
+			"ConstraintDescription" : "must be a valid EC2 instance type."
+		},
+		"AgentSpotInstanceType" : {
+			"Description" : "WebServer EC2 instance type",
+			"Type" : "String",
+			"Default" : "m3.medium",
+			"AllowedValues": [
+				"m3.medium",
+				"m3.large",
+				"m3.xlarge",
+				"m3.2xlarge",
+				"r3.large",
+				"r3.xlarge",
+				"r3.2xlarge",
+				"r3.4xlarge",
+				"r3.8xlarge"
+			],
+			"ConstraintDescription" : "must be a valid EC2 instance type."
+		},
+		"WindowsAgentAmi": {
+			"Description": "AMI to use. Note Ubuntu is prefered.",
+			"Default": "ami-fddabdc7",
+			"Type": "String"
+		},
+		"LinuxAgentAmi": {
+			"Description": "AMI to use. Note Ubuntu is prefered.",
+			"Default": "ami-fddabdc7",
+			"Type": "String"
+		},
+		
+		"GoServerBin": {
+			"Description": "Url to download Go server binary from.",
+			"Default": "http://download.go.cd/gocd/go-server-14.2.0-377.zip",
+			"Type": "String"
+		},
+		"GoAgentBin": {
+			"Description": "Url to download Go agent binary from.",
+			"Default": "http://download.go.cd/gocd/go-agent-14.2.0-377.zip",
+			"Type": "String"
+		},
+		"GoAgentKey": {
+			"Description": "Shared secret to allow auto registering of go agents.",
+			"Default": "Password1234",
+			"Type": "String"
+		},
+
+		"securityOutVpcId": {
+		  "Description" : "VPCid associated with the subnets.",
+		  "Type": "String"
+		},
+		"securityOutSubnet1Id": {
+		  "Description" : "Subnet to run HA web cluster on.",
+		  "Type": "String"
+		},
+		"securityOutSubnet2Id": {
+		  "Description" : "Subnet to run HA web cluster on.",
+		  "Type": "String"
+		}
+	},
+
+	"Mappings" : {
+		"InstanceVariables" : {
+			"t2.small": { "ram" : "950" },
+			"t2.medium": { "ram" : "1950" },
+			"m3.medium": { "ram" : "1800", "lspotprice": "0.028", "wspotprice": "0.068" },
+			"m3.large": { "ram" : "3600", "lspotprice": "0.056", "wspotprice": "0.135" },
+			"m3.xlarge": { "ram" : "7000", "lspotprice": "0.111", "wspotprice": "0.271" },
+			"m3.2xlarge": { "ram" : "14500", "lspotprice": "0.222", "wspotprice": "0.543" },
+			"r3.large": { "ram" : "7500", "lspotprice": "0.065", "wspotprice": "0.155" },
+			"r3.xlarge": { "ram" : "15000", "lspotprice": "0.130", "wspotprice": "0.280" },
+			"r3.2xlarge": { "ram" : "30000", "lspotprice": "0.261", "wspotprice": "0.539" },
+			"r3.4xlarge": { "ram" : "60000", "lspotprice": "0.522", "wspotprice": "0.948" },
+			"r3.8xlarge": { "ram" : "12000", "lspotprice": "1.043", "wspotprice": "1.228" }
+		}
+	},
+
+	"Resources" : {
+
+		"GoServer" : {
+			"Type" : "AWS::EC2::Instance",
+						"Metadata" : {
+				"AWS::CloudFormation::Init" : {
+					"configSets": {
+						"config": [
+							"download-go",
+							"initialise-go"
+						]
+					},
+					"download-elasticsearch" : {
+						"sources" : {
+							"/home/usr/local/": { "Ref": "GoServerUrl" }
+						},
+						"files" : {
+							"/home/usr/local/elasticsearch.yml" : {
+								"content" : { "Fn::Join" : ["", [
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/etc/init/elasticsearch.conf" : {
+								"content" : { "Fn::Join" : ["", [
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							}
+						}
+					},
+					"bootstrap-elasticsearch" : {
+						"files" : {
+							"/home/usr/local/mount-disk.sh" : {
+								"content" : { "Fn::Join" : ["", [
+									"#!/bin/bash\n",
+									"mkfs -t ext4 /dev/$1\n",
+									"mkdir /mnt/$1\n",
+									"mount -t ext4 /dev/$1 /mnt/$1\n"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							}
+						},
+						"commands" : {
+							"1-mount-gp-ssd": {
+								"command" : "bash mount-disk.sh xvdk",
+								"cwd" : "/home/usr/local/",
+								"ignoreErrors" : "false"
+							},
+							"2-mount-ephemeral-ssd": {
+								"command" : "bash mount-disk.sh xvdb",
+								"cwd" : "/home/usr/local/",
+								"ignoreErrors" : "true"
+							},
+							"3-install-aws-plugin" : {
+								"command" : "bash plugin -install elasticsearch/elasticsearch-cloud-aws/2.3.0",
+								"cwd" : "/home/usr/local/elasticsearch-1.3.2/bin/",
+								"ignoreErrors" : "false"
+							},
+							"4-start-elasticsearch" : {
+								"command" : "service elasticsearch start",
+								"ignoreErrors" : "false"
+							}
+						}
+					}
+				}
+			},
+			"Properties" : {
+				"InstanceType" : { "Ref" : "MasterInstanceType" },
+				"ImageId" : { "Ref" : "MasterClusterAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" },
+				"SecurityGroups": [
+					{ "Ref" : "ServerSg" }
+				],
+				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+					"#!/bin/bash\n",
+					"apt-get update\n",
+					"apt-get -y install python-setuptools default-jre\n",
+					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r GoServer -c config"
+				]]}}
+			}
+		},
+
+		"GoWindowsAgentLc" : {
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Metadata" : {
+				"AWS::CloudFormation::Init" : {
+					"configSets": {
+						"config": [
+							"download-go",
+							"initialise-go"
+						]
+					},
+					"download-elasticsearch" : {
+						"sources" : {
+							"/home/usr/local/": { "Ref": "GoServerUrl" }
+						},
+						"files" : {
+							"/home/usr/local/elasticsearch.yml" : {
+								"content" : { "Fn::Join" : ["", [
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/etc/init/elasticsearch.conf" : {
+								"content" : { "Fn::Join" : ["", [
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							}
+						}
+					},
+					"bootstrap-elasticsearch" : {
+						"files" : {
+							"/home/usr/local/mount-disk.sh" : {
+								"content" : { "Fn::Join" : ["", [
+									"#!/bin/bash\n",
+									"mkfs -t ext4 /dev/$1\n",
+									"mkdir /mnt/$1\n",
+									"mount -t ext4 /dev/$1 /mnt/$1\n"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							}
+						},
+						"commands" : {
+							"1-mount-gp-ssd": {
+								"command" : "bash mount-disk.sh xvdk",
+								"cwd" : "/home/usr/local/",
+								"ignoreErrors" : "false"
+							},
+							"2-mount-ephemeral-ssd": {
+								"command" : "bash mount-disk.sh xvdb",
+								"cwd" : "/home/usr/local/",
+								"ignoreErrors" : "true"
+							},
+							"3-install-aws-plugin" : {
+								"command" : "bash plugin -install elasticsearch/elasticsearch-cloud-aws/2.3.0",
+								"cwd" : "/home/usr/local/elasticsearch-1.3.2/bin/",
+								"ignoreErrors" : "false"
+							},
+							"4-start-elasticsearch" : {
+								"command" : "service elasticsearch start",
+								"ignoreErrors" : "false"
+							}
+						}
+					}
+				}
+			},
+			"Properties": {
+				"InstanceType" : { "Ref" : "AgentInstanceType" },
+				"ImageId" : { "Ref" : "WindowsAgentAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" },
+				"AssociatePublicIpAddress": "false",
+				"SecurityGroups": [
+					{ "Ref" : "AgentSg" }
+				],
+				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+					"#!/bin/bash\n",
+					"apt-get update\n",
+					"apt-get -y install python-setuptools default-jre\n",
+					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r GoWindowsAgentLc -c config"
+				]]}}
+			}
+		},
+		"GoWindowsAgentAsg" : {
+		  "Type" : "AWS::AutoScaling::AutoScalingGroup",
+		  "Properties" : {
+		    "VPCZoneIdentifier": [
+				{ "Ref" : "securityOutSubnet1Id" }
+			],
+			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
+			"LaunchConfigurationName" : { "Ref" : "GoWindowsAgentLc" },
+			"MinSize" : "2",
+			"MaxSize" : "20",
+			"DesiredCapacity" : "2",
+			"Tags" : [{"Key": "Name", "Value" : "Go Agent", "PropagateAtLaunch" : "True"}]
+		  }
+		},
+		"GoWindowsAgentSpotLc" : {
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Properties": {
+				"InstanceType" : { "Ref" : "AgentSpotInstanceType" },
+				"ImageId" : { "Ref" : "WindowsAgentAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" },
+				"AssociatePublicIpAddress": "false",
+				"SecurityGroups": [
+					{ "Ref" : "AgentSg" }
+				],
+				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+					"#!/bin/bash\n",
+					"apt-get update\n",
+					"apt-get -y install python-setuptools default-jre\n",
+					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r GoWindowsAgentLc -c config"
+				]]}},
+				"SpotPrice": { "Fn::FindInMap": [ "InstanceVariables", { "Ref": "AgentSpotInstanceType" }, "wspotprice" ] }
+			}
+		},
+		"GoWindowsAgentSpotAsg" : {
+		  "Type" : "AWS::AutoScaling::AutoScalingGroup",
+		  "Properties" : {
+		    "VPCZoneIdentifier": [
+				{ "Ref" : "securityOutSubnet1Id" }
+			],
+			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
+			"LaunchConfigurationName" : { "Ref" : "GoWindowsAgentSpotLc" },
+			"MinSize" : "0",
+			"MaxSize" : "1",
+			"DesiredCapacity" : "1",
+			"Tags" : [{"Key": "Name", "Value" : "Go Agent Spot", "PropagateAtLaunch" : "True"}]
+		  }
+		},
+
+		"ServerSg" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" : {
+				"GroupDescription" : "Go Server Security Group",
+				"VpcId" : { "Ref" : "securityOutVpcId"},
+				"SecurityGroupEgress" : [
+					{ "IpProtocol": "-1", "CidrIp": "0.0.0.0/0" }
+				],
+				"Tags": [{"Key": "Name", "Value" : "Go Server Security Group"}]
+			}
+		},
+		"AgentSg" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" : {
+				"GroupDescription" : "Go Agent Security Group. No in bound traffic other than Go Server.",
+				"SecurityGroupIngress" : [
+					{ "IpProtocol": "-1", "SourceSecurityGroupId" : {"Ref" : "ServerSg"}}
+				],
+				"SecurityGroupEgress" : [
+					{ "IpProtocol": "-1", "CidrIp": "0.0.0.0/0" }
+				],
+				"VpcId" : { "Ref" : "securityOutVpcId"},
+				"Tags": [{"Key": "Name", "Value" : "Go Agent Security Group"}]
+			}
+		}
+
+	},
+
+	"Outputs" : {
+		"EsClusterMasters" : {
+			"Value" : { "Fn::GetAtt" : ["EsMasterLoadBalancer", "DNSName"] },
+			"Description" : "Private A record for ES Master Node ELB"
+		}
+	}
+}
