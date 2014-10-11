@@ -1,7 +1,7 @@
 {
   "AWSTemplateFormatVersion" : "2010-09-09",
 
-  "Description" : "A simple empty VPC.",
+  "Description" : "A trio of VPN Gateway, Customer Gateway, and VPN Connection.",
 
   "Parameters" : {
 
