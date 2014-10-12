@@ -1,76 +1,61 @@
 {
-  "AWSTemplateFormatVersion" : "2010-09-09",
+	"AWSTemplateFormatVersion" : "2010-09-09",
 
-  "Description" : "A simple empty VPC.",
+	"Description" : "A simple empty VPC.",
 
-  "Parameters" : {
-    "VpcPrefix" : {
-      "Description" : "Prefix for the VPC",
-      "Type" : "String",
-      "Default" : "10.0"
-    }
-  },
+	"Parameters" : {
+		"VpcPrefix" : {
+			"Description" : "Prefix for the VPC",
+			"Type" : "String",
+			"Default" : "10.0"
+		}
+	},
 
-  "Resources" : {
+	"Mappings" : {
+		"RegionMap" : {
+			"us-east-1" : { "AzCount" : "3" },
+			"us-west-1" : { "AzCount" : "2" },
+			"us-west-2" : { "AzCount" : "3" },
+			"eu-west-1" : { "AzCount" : "3" },
+			"sa-east-1" : { "AzCount" : "2" },
+			"ap-southeast-1" : { "AzCount" : "2" },
+			"ap-southeast-2" : { "AzCount" : "2" },
+			"ap-northeast-1" : { "AzCount" : "2" }
+		}
+	},
 
-    "Vpc" : {
-      "Type" : "AWS::EC2::VPC",
-      "Properties" : {
-        "CidrBlock" :  { "Fn::Join" : [ "", [
-		  { "Ref" : "VpcPrefix" }, ".0.0/16"
-		]]},
-		"Tags" : []
-      }
-    },
+	"Resources" : {
 
-    "InternetGateway" : {
-      "Type" : "AWS::EC2::InternetGateway",
-      "Properties" : {
-        "Tags" : []
-      }
-    },
+		"Vpc" : {
+			"Type" : "AWS::EC2::VPC",
+			"Properties" : {
+				"CidrBlock" :  { "Fn::Join" : [ "", [
+					{ "Ref" : "VpcPrefix" }, ".0.0/16"
+				]]},
+				"Tags" : []
+			}
+		},
 
-    "AttachGateway" : {
-       "Type" : "AWS::EC2::VPCGatewayAttachment",
-       "Properties" : {
-         "VpcId" : { "Ref" : "Vpc" },
-         "InternetGatewayId" : { "Ref" : "InternetGateway" }
-       }
-    },
+		"InternetGateway" : {
+			"Type" : "AWS::EC2::InternetGateway",
+			"Properties" : {
+				"Tags" : []
+			}
+		},
 
-    "PublicRouteTable" : {
-      "Type" : "AWS::EC2::RouteTable",
-      "Properties" : {
-        "VpcId" : {"Ref" : "Vpc"},
-        "Tags" : []
-      }
-    },
+		"AttachGateway" : {
+			"Type" : "AWS::EC2::VPCGatewayAttachment",
+			"Properties" : {
+				"VpcId" : { "Ref" : "Vpc" },
+				"InternetGatewayId" : { "Ref" : "InternetGateway" }
+			}
+		}
 
-    "PublicRoute" : {
-      "Type" : "AWS::EC2::Route",
-      "DependsOn" : "AttachGateway",
-      "Properties" : {
-        "RouteTableId" : { "Ref" : "PublicRouteTable" },
-        "DestinationCidrBlock" : "0.0.0.0/0",
-        "GatewayId" : { "Ref" : "InternetGateway" }
-      }
-    }
-  },
+	},
 
-  "Outputs" : {
-    "VpcId" : {
-      "Description" : "Id of the VPC created.",
-      "Value" :  { "Ref" : "Vpc" }
-    },
-
-	"PublicRouteTableId" : {
-      "Description" : "Id of the route table with the public route and internet gateway. Note this is NOT the default route table for the VPC.",
-      "Value" :  { "Ref" : "PublicRouteTable" }
-    },
-
-	"Igw": {
-	  "Description" : "Id of the internet gateway attached to the VPC and public route table.",
-      "Value" :  { "Ref" : "InternetGateway" }
+	"Outputs" : {
+		"AzCount": {
+			"Value": { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "AzCount" ]}
+		}
 	}
-  }
 }
