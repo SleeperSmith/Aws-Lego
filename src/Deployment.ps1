@@ -1,6 +1,25 @@
 ﻿$templateNameTag = "TemplateName"
 # Name > Environment > LogicalUnit
 
+function New-Deployment {
+    param (
+        [string]$bucketname,
+        [string]$projectname,
+        [string]$version,
+        [string]$deployroot
+    )
+
+    $prefix = "$projectname/$version/"
+    $oldfiles = Get-S3Object -BucketName $bucketname -KeyPrefix $prefix | % {
+        $_.Key
+    }
+    if ($oldfiles.Count -gt 0) {
+        Remove-S3Object -BucketName $bucketname -Keys $oldfiles -Force
+    }
+    Write-S3Object -BucketName $bucketname -KeyPrefix $prefix -Folder $deployroot -Recurse
+    
+}
+
 function InternalAddParameter {
     param(
         [Parameter(Mandatory=$true)]
@@ -114,7 +133,6 @@ function Upsert-StackLink(
             ValueFromPipelineByPropertyName=$true)]
         [string]$TemplateUrl,
         [parameter(
-            Mandatory=$true,
             ValueFromPipelineByPropertyName=$true)]
         $StackParameters = @(),
 
@@ -140,11 +158,8 @@ function Upsert-StackLink(
 
     Write-Host == Create Stack ==    
     $Tags += @{"Key" = $templateNameTag; "Value" = $templateName}
-    
-    $existingStack = $cfnStacks | ? {
-        $_.StackName -eq "private-subnet"
-    }
-    if ($existingStack.Count -eq 0) {
+
+    if ((Get-CFNStack | ? { $_.StackName -eq $StackName}).Count -eq 0) {
         $stackId = New-CFNStack -StackName $StackName -Parameters $StackParameters -TemplateURL $TemplateUrl -Tags $tags
     } elseif ($UpdateExisting) {
         $stackId = Update-CFNStack -StackName $StackName -Parameters $StackParameters -TemplateURL $TemplateUrl
@@ -179,7 +194,3 @@ function Wait-StackLink(
 }
 
 Write-Host AWS-Lego loaded.
-
-Get-StackLinkParameters https://s3-ap-southeast-2.amazonaws.com/bc-deployment/Temp/subnet.template |
-    Upsert-StackLink
-
