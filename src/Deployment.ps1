@@ -13,9 +13,7 @@ function New-Deployment {
     $oldfiles = Get-S3Object -BucketName $bucketname -KeyPrefix $prefix | % {
         $_.Key
     }
-    if ($oldfiles.Count -gt 0) {
-        Remove-S3Object -BucketName $bucketname -Keys $oldfiles -Force
-    }
+    Remove-S3Object -BucketName $bucketname -Keys $oldfiles -Force
     Write-S3Object -BucketName $bucketname -KeyPrefix $prefix -Folder $deployroot -Recurse
     
 }
