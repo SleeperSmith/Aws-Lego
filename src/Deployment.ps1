@@ -13,26 +13,39 @@ function New-Deployment {
     $oldfiles = Get-S3Object -BucketName $bucketname -KeyPrefix $prefix | % {
         $_.Key
     }
-    Remove-S3Object -BucketName $bucketname -Keys $oldfiles -Force
+    if ($oldfiles.Count -gt 0) {
+        Remove-S3Object -BucketName $bucketname -Keys $oldfiles -Force
+    }
     Write-S3Object -BucketName $bucketname -KeyPrefix $prefix -Folder $deployroot -Recurse
     
 }
 
-function InternalAddParameter {
+function InternalMatchTag {
     param(
-        [Parameter(Mandatory=$true)]
-        [System.Collections.Generic.List[string]]$ParameterKeys,
-        #[Parameter(Mandatory=$true)]
-        [System.Collections.Generic.List[object]]$Parameters = @(),
-        [Parameter(Mandatory=$true)]
-        [string]$Key,
-        [Parameter(Mandatory=$true)]
-        [string]$Value
+        $CfnStacks,
+        $TemplateName
     )
 
-    if ($ParameterKeys.Contains($Key) -and !($Parameters.Contains($Key))) {
-        $Parameters.Add(@{"Key" = $Key; "Value" = $Value})
+    $result = @()
+    foreach($cfnStack in $CfnStacks) {
+
+        $templateTag = $CfnStack.Tags | ? {
+            $_.Key -eq $templateNameTag
+        } | ? {
+            $_.Value.Split('.') | ? {
+                $_ -eq $TemplateName
+            }
+        }
+
+        if($templateTag.Count -gt 0) {
+            $result += $cfnStack
+        }
     }
+
+    if ($result.Count -gt 0) {
+        return $result[0]; #pick first. The order of stack is the priority.
+    }
+    return $null;
 }
 
 function Get-StackLinkParameters {
@@ -46,19 +59,26 @@ function Get-StackLinkParameters {
         [string[]]$PriorityStackNames = @()
     )
 
-    $templateUrlSegments = $TemplateUrl.Split('/')
-    $templateUrlSegments[$templateUrlSegments.Count-1] = ""
-    $templateUrlBase = [string]::Join("/", $templateUrlSegments)
-
     $cfnNewLaunchTarget = Test-CFNTemplate -TemplateURL $TemplateUrl
     $cfnNewLaunchTargetParameterKeys = $cfnNewLaunchTarget.Parameters | % {
         $_.ParameterKey
     }
 
+    $templateUrlSegments = $TemplateUrl.Split('/')
+    $templateUrlSegments[$templateUrlSegments.Count-1] = ""
+    $templateUrlBase = [string]::Join("/", $templateUrlSegments)
+
     Write-Host == Existing Stacks ==
     $cfnStacks = Get-CFNStack | ? {
         ($_.Tags | ? { $_.Key -eq $templateNameTag }).Count -eq 1
     }
+    $priorityCfnStacks = $cfnStacks | ? {
+        $PriorityStackNames.Contains($_.StackName)
+    }
+    $nonePriorityStacks = $cfnStacks | ? {
+        !($PriorityStackNames.Contains($_.StackName))
+    }
+    $cfnStacks = $priorityCfnStacks + $nonePriorityStacks
     if ($cfnStacks.Count -eq 0) {
         Write-Host No stacks found.
     } else {
@@ -66,54 +86,62 @@ function Get-StackLinkParameters {
     }
 
     Write-Host == Parameters ==
-    InternalAddParameter -ParameterKeys $cfnNewLaunchTargetParameterKeys `
-        -Parameters $StackParameters -Key $TemplateUrlBaseParameterKey -Value $templateUrlBase
+    foreach($cfnParameter in $cfnNewLaunchTarget.Parameters) {
 
-    $priorityCfnStack = $cfnStacks | ? {
-        $PriorityStackNames.Contains($_.StackName)
-    }
-    foreach($cfnStack in $priorityCfnStack) {
-        $cfnStackTemplateName = $cfnStack.Tags | ? {
-            $_.Key -eq $templateNameTag
-        } | % {
-            $_.Value
-        } | Select-Object -First 1
-        
-        foreach($cfnStackTemplateSegment in $cfnStackTemplateName.Split('.')) {
+        $paramDerivative = Select-String "\[(.*)\]" -input $cfnParameter.Description -AllMatches | Foreach {$_.Matches.Groups[1].Value}
+        # Only if there's param derivative directive
+        if (($paramDerivative -eq $null) -or ($paramDerivative.Count -ne 1)) {
+            continue
+        }
 
-            $cfnStack[0].Parameters | % {
-                $key = $cfnStackTemplateSegment + "In" + $_.Key
-                InternalAddParameter -ParameterKeys $cfnNewLaunchTargetParameterKeys `
-                    -Parameters $StackParameters -Key $key -Value $_.Value
+        $segments = $paramDerivative.Split('.')
+        # Only if the derivative directive has 3 segments
+        if ($segments.Count -ne 3) {
+            continue
+        }
+
+        $matchedStack = InternalMatchTag -CfnStacks $cfnStacks -TemplateName $segments[0]
+        # Only if the stack exist.
+        if ($matchedStack -eq $null) {
+            continue
+        }
+        $matchedStack = $matchedStack[0]
+
+        $value = $null
+        switch($segments[1].ToLower()) {
+            "parameters" {
+                $matchedParams = $matchedStack.Parameters | ? {
+                    $_.ParameterKey -eq $segments[2]
+                }
+                if ($matchedParams.Count -eq 1) {
+                    $value = $matchedParams[0].Value
+                }
             }
-            $cfnStack[0].Outputs | % {
-                $key = $cfnStackTemplateSegment + "Out" + $_.OutputKey
-                InternalAddParameter -ParameterKeys $cfnNewLaunchTargetParameterKeys `
-                    -Parameters $StackParameters -Key $key -Value $_.OutputValue
+            "resources" {
+                $resources = Get-CFNStackResources -StackName $matchedStack.StackName
+                $matchedResource = $resources | ? {
+                    $_.LogicalResourceId -eq $segments[2]
+                }
+                if ($matchedResource.Count -eq 1) {
+                    $value = $matchedResource[0].PhysicalResourceId
+                }
+            }
+            "outputs" {
+                $matchedOutputs = $matchedStack.Outputs | ? {
+                    $_.OutputKey -eq $segments[2]
+                }
+                if ($matchedOutputs.Count -eq 1) {
+                    $value = $matchedOutputs[0].OutputValue
+                }
             }
         }
-    }
-    foreach($cfnStack in $cfnStacks) {
-        $cfnStackTemplateName = $cfnStack.Tags | ? {
-            $_.Key -eq $templateNameTag
-        } | % {
-            $_.Value
-        } | Select-Object -First 1
-        
-        foreach($cfnStackTemplateSegment in $cfnStackTemplateName.Split('.')) {
 
-            $cfnStack[0].Parameters | % {
-                $key = $cfnStackTemplateSegment + "In" + $_.Key
-                InternalAddParameter -ParameterKeys $cfnNewLaunchTargetParameterKeys `
-                    -Parameters $StackParameters -Key $key -Value $_.Value
-            }
-            $cfnStack[0].Outputs | % {
-                $key = $cfnStackTemplateSegment + "Out" + $_.OutputKey
-                InternalAddParameter -ParameterKeys $cfnNewLaunchTargetParameterKeys `
-                    -Parameters $StackParameters -Key $key -Value $_.OutputValue
-            }
+        if ($value -ne $null) {
+            $StackParameters.Add(@{"Key" = $cfnParameter.ParameterKey; "Value" = $value})
         }
+
     }
+
     $StackParameters | % {
         Write-Host ">" $_["Key"]: $_["Value"]
     }
@@ -132,7 +160,7 @@ function Upsert-StackLink(
         [string]$TemplateUrl,
         [parameter(
             ValueFromPipelineByPropertyName=$true)]
-        $StackParameters = @(),
+        $StackParameters,
 
         [string]$StackName,
         $Tags = @(),

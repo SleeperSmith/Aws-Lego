@@ -34,7 +34,7 @@
 		},
 
 		"RouteTable" : {
-			"Description" : "VPC id [ia-subnet.resources.RouteTable]",
+			"Description" : "VPC id [internet-access.resources.RouteTable]",
 			"Type" : "String"
 		},
 
