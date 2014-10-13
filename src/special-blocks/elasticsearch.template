@@ -1,0 +1,574 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+
+	"Description": "A template to launch elasticsearch cluster.",
+
+	"Parameters": {
+		"KeyPairName": {
+			"Description": "Name of an existing EC2 KeyPair to enable SSH access to the instances",
+			"Type": "String"
+		},
+
+		"DataNodeInstanceType" : {
+			"Description" : "WebServer EC2 instance type",
+			"Type" : "String",
+			"Default" : "r3.large",
+			"AllowedValues": [
+				"m3.medium",
+				"m3.large",
+				"m3.xlarge",
+				"m3.2xlarge",
+				"r3.large",
+				"r3.xlarge",
+				"r3.2xlarge",
+				"r3.4xlarge",
+				"r3.8xlarge"
+			],
+			"ConstraintDescription" : "must be a valid EC2 instance type."
+		},
+		"MasterNodeInstanceType" : {
+			"Description" : "WebServer EC2 instance type",
+			"Type" : "String",
+			"Default" : "t2.small",
+			"AllowedValues": [
+				"t2.small",
+				"t2.medium",
+				"m3.medium",
+				"m3.large",
+				"m3.xlarge",
+				"m3.2xlarge"
+			],
+			"ConstraintDescription" : "must be a valid EC2 instance type."
+		},
+		"EsClusterAmi": {
+			"Description": "AMI to use. Note Ubuntu is prefered.",
+			"Default": "ami-fddabdc7",
+			"Type": "String"
+		},
+		"EsDataDiskSize": {
+			"Description": "Size of the SSD for the elasticsearch to write to.",
+			"Default": "150",
+			"Type": "Number",
+			"MinValue": "50",
+			"MaxValue": "1000"
+		},
+
+		"EsConfShard": {
+			"Description": "Number of shards per index.",
+			"Default": "6",
+			"Type": "Number"
+		},
+		"EsConfReplica": {
+			"Description": "Number of replicas.",
+			"Default": "1",
+			"Type": "Number"
+		},
+		"EsConfClusterName": {
+			"Description": "Name of cluster. This is used for discovery.",
+			"Type": "String"
+		},
+
+		"VpcId": {
+			"Description" : "VPCid associated with the subnets.",
+			"Type": "String"
+		},
+		"Subnet1Id": {
+			"Description" : "Subnet to run HA web cluster on.",
+			"Type": "String"
+		},
+		"Subnet2Id": {
+			"Description" : "Subnet to run HA web cluster on.",
+			"Type": "String"
+		},
+		"Subnet3Id": {
+			"Description" : "Subnet to run HA web cluster on.",
+			"Type": "String"
+		},
+		"LogBucket": {
+			"Description" : "Image id of the frontend",
+			"Type" : "String"
+		},
+
+		"TemplateEnv": {
+			"Description" : "Environment name. Accepted values are Dev / UAT / Production",
+			"Type" : "String"
+		}
+	},
+
+	"Mappings" : {
+		"InstanceVariables" : {
+			"t2.small": { "ram" : "950" },
+			"t2.medium": { "ram" : "1950" },
+			"m3.medium": { "ram" : "1800", "spotprice": "0.02"},
+			"m3.large": { "ram" : "3600", "spotprice": "0.03" },
+			"m3.xlarge": { "ram" : "7000", "spotprice": "0.05" },
+			"m3.2xlarge": { "ram" : "14500", "spotprice": "0.09" },
+			"r3.large": { "ram" : "7500", "spotprice": "0.03" },
+			"r3.xlarge": { "ram" : "15000", "spotprice": "0.05" },
+			"r3.2xlarge": { "ram" : "30000", "spotprice": "0.09" },
+			"r3.4xlarge": { "ram" : "60000", "spotprice": "0.17" },
+			"r3.8xlarge": { "ram" : "12000", "spotprice": "0.4" }
+		}
+	},
+
+	"Resources" : {
+
+		"EsBaseLc" : {
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Metadata" : {
+				"AWS::CloudFormation::Init" : {
+					"configSets": {
+						"config": [
+							"download-elasticsearch",
+							"bootstrap-elasticsearch"
+						]
+					},
+					"download-elasticsearch" : {
+						"sources" : {
+							"/home/usr/local/": "https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-1.3.2.zip"
+						},
+						"files" : {
+							
+						}
+					},
+					"bootstrap-elasticsearch" : {
+						"files" : {
+							"/home/usr/local/mount-disk.sh" : {
+								"content" : { "Fn::Join" : ["", [
+									"#!/bin/bash\n",
+									"mkfs -t ext4 /dev/$1\n",
+									"mkdir /mnt/$1\n",
+									"mount -t ext4 /dev/$1 /mnt/$1\n"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							}
+						},
+						"commands" : {
+							"1-mount-gp-ssd": {
+								"command" : "bash mount-disk.sh xvdk",
+								"cwd" : "/home/usr/local/",
+								"ignoreErrors" : "true"
+							},
+							"2-mount-ephemeral-ssd": {
+								"command" : "bash mount-disk.sh xvdb",
+								"cwd" : "/home/usr/local/",
+								"ignoreErrors" : "true"
+							},
+							"3-install-aws-plugin" : {
+								"command" : "bash plugin -install elasticsearch/elasticsearch-cloud-aws/2.3.0",
+								"cwd" : "/home/usr/local/elasticsearch-1.3.2/bin/",
+								"ignoreErrors" : "false"
+							},
+							"4-start-elasticsearch" : {
+								"command" : "service elasticsearch start",
+								"ignoreErrors" : "false"
+							}
+						}
+					}
+				}
+			},
+			"Properties": {
+				"InstanceType" : { "Ref" : "DataNodeInstanceType" },
+				"ImageId" : { "Ref" : "EsClusterAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" }
+			}
+		},
+
+		"EsDataNodeLc" : {
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Metadata" : {
+				"AWS::CloudFormation::Init" : {
+					"configSets": {
+						"config": [
+							"elasticsearch-config"
+						]
+					},
+					"elasticsearch-config" : {
+						"files" : {
+							"/home/usr/local/elasticsearch.yml" : {
+								"content" : { "Fn::Join" : ["", [
+									"cluster.name: ",{"Ref":"EsConfClusterName"},"\n",
+									"index.number_of_shards: ",{"Ref":"EsConfShard"},"\n",
+									"index.number_of_replicas: ",{"Ref":"EsConfReplica"},"\n",
+									"path.data: /mnt/xvdk\n",
+									"path.work: /mnt/xvdb\n",
+									"path.log: /mnt/xvdk\n",
+									"node.master: false\n",
+									"node.data: true\n",
+									"bootstrap.mlockall: true\n",
+									"discovery.type: ec2\n",
+									"cloud.aws.region: ", { "Ref": "AWS::Region" }, "\n",
+									"node.rack_id: ondemand\n",
+									"discovery.ec2.groups: ", { "Ref" : "EsClusterNodeSg" }
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/etc/init/elasticsearch.conf" : {
+								"content" : { "Fn::Join" : ["", [
+									"script\n",
+									"    ulimit -n 40000\n",
+									"    export ES_HEAP_SIZE=",{ "Fn::FindInMap": [ "InstanceVariables", { "Ref": "DataNodeInstanceType" }, "ram" ] },"m\n",
+									"    bash /home/usr/local/elasticsearch-1.3.2/bin/elasticsearch -Des.index.store.type=mmapfs -Des.config=/home/usr/local/elasticsearch.yml\n",
+									"end script\n",
+									"respawn limit 3 60"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							}
+						}
+					}
+				}
+			},
+			"Properties": {
+				"InstanceType" : { "Ref" : "DataNodeInstanceType" },
+				"ImageId" : { "Ref" : "EsClusterAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" },
+				"AssociatePublicIpAddress": "false",
+				"SecurityGroups": [
+					{ "Ref" : "EsClusterNodeSg" }
+				],
+				"IamInstanceProfile": { "Ref" : "EsDataNodeInstanceProfile" },
+				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+					"#!/bin/bash\n",
+					"apt-get update\n",
+					"apt-get -y install python-setuptools default-jre\n",
+					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r EsDataNodeLc -c config\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r EsBaseLc -c config"
+				]]}},
+				"BlockDeviceMappings" : [
+					{
+						"DeviceName" : "/dev/sda1",
+						"Ebs" : { "VolumeSize" : "30", "VolumeType" : "gp2" }
+					},
+					{
+						"DeviceName" : "/dev/xvdk",
+						"Ebs" : { "VolumeSize" : {"Ref": "EsDataDiskSize"}, "VolumeType" : "gp2" }
+					}
+				]
+			}
+		},
+		"EsDataNodeAsg" : {
+			"Type" : "AWS::AutoScaling::AutoScalingGroup",
+			"Properties" : {
+				"VPCZoneIdentifier": [
+					{ "Ref" : "Subnet1Id" }
+				],
+				"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
+				"LaunchConfigurationName" : { "Ref" : "EsDataNodeLc" },
+				"MinSize" : "2",
+				"MaxSize" : "20",
+				"DesiredCapacity" : "2",
+				"Tags" : [{"Key": "Name", "Value" : "Elasticsearch Cluster Data Node", "PropagateAtLaunch" : "True"}]
+			}
+		},
+		"EsSpotDataNodeLc" : {
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Metadata" : {
+				"AWS::CloudFormation::Init" : {
+					"configSets": {
+						"config": [
+							"elasticsearch-config"
+						]
+					},
+					"elasticsearch-config" : {
+						"files" : {
+							"/home/usr/local/elasticsearch.yml" : {
+								"content" : { "Fn::Join" : ["", [
+									"cluster.name: ",{"Ref":"EsConfClusterName"},"\n",
+									"index.number_of_shards: ",{"Ref":"EsConfShard"},"\n",
+									"index.number_of_replicas: ",{"Ref":"EsConfReplica"},"\n",
+									"path.data: /mnt/xvdk\n",
+									"path.work: /mnt/xvdb\n",
+									"path.log: /mnt/xvdk\n",
+									"node.master: false\n",
+									"node.data: true\n",
+									"bootstrap.mlockall: true\n",
+									"discovery.type: ec2\n",
+									"cloud.aws.region: ", { "Ref": "AWS::Region" }, "\n",
+									"node.rack_id: spot\n",
+									"discovery.ec2.groups: ", { "Ref" : "EsClusterNodeSg" }
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/etc/init/elasticsearch.conf" : {
+								"content" : { "Fn::Join" : ["", [
+									"script\n",
+									"    ulimit -n 40000\n",
+									"    export ES_HEAP_SIZE=",{ "Fn::FindInMap": [ "InstanceVariables", { "Ref": "DataNodeInstanceType" }, "ram" ] },"m\n",
+									"    bash /home/usr/local/elasticsearch-1.3.2/bin/elasticsearch -Des.index.store.type=mmapfs -Des.config=/home/usr/local/elasticsearch.yml\n",
+									"end script\n",
+									"respawn limit 3 60"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							}
+						}
+					}
+				}
+			},
+			"Properties": {
+				"InstanceType" : { "Ref" : "DataNodeInstanceType" },
+				"ImageId" : { "Ref" : "EsClusterAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" },
+				"AssociatePublicIpAddress": "false",
+				"SecurityGroups": [
+					{ "Ref" : "EsClusterNodeSg" }
+				],
+				"IamInstanceProfile": { "Ref" : "EsDataNodeInstanceProfile" },
+				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+					"#!/bin/bash\n",
+					"apt-get update\n",
+					"apt-get -y install python-setuptools default-jre\n",
+					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r EsSpotDataNodeLc -c config\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r EsBaseLc -c config\n"
+				]]}},
+				"BlockDeviceMappings" : [
+					{
+						"DeviceName" : "/dev/sda1",
+						"Ebs" : { "VolumeSize" : "30", "VolumeType" : "gp2" }
+					},
+					{
+						"DeviceName" : "/dev/xvdk",
+						"Ebs" : { "VolumeSize" : {"Ref": "EsDataDiskSize"}, "VolumeType" : "gp2" }
+					}
+				],
+				"SpotPrice": { "Fn::FindInMap": [ "InstanceVariables", { "Ref": "DataNodeInstanceType" }, "spotprice" ] }
+			}
+		},
+		"EsSpotDataNodeAsg" : {
+		  "Type" : "AWS::AutoScaling::AutoScalingGroup",
+		  "Properties" : {
+		    "VPCZoneIdentifier": [
+				{ "Ref" : "Subnet1Id" }
+			],
+			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
+			"LaunchConfigurationName" : { "Ref" : "EsSpotDataNodeLc" },
+			"MinSize" : "0",
+			"MaxSize" : "1",
+			"DesiredCapacity" : "1",
+			"Tags" : [{"Key": "Name", "Value" : "Elasticsearch Cluster Spot Data Node", "PropagateAtLaunch" : "True"}]
+		  }
+		},
+
+		"EsMasterNodeLc" : {
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Metadata" : {
+				"AWS::CloudFormation::Init" : {
+					"configSets": {
+						"config": [
+							"elasticsearch-config"
+						]
+					},
+					"elasticsearch-config" : {
+						"files" : {
+							"/home/usr/local/elasticsearch.yml" : {
+								"content" : { "Fn::Join" : ["", [
+									"cluster.name: ",{"Ref":"EsConfClusterName"},"\n",
+									"index.number_of_shards: ",{"Ref":"EsConfShard"},"\n",
+									"index.number_of_replicas: ",{"Ref":"EsConfReplica"},"\n",
+									"node.master: true\n",
+									"node.data: false\n",
+									"bootstrap.mlockall: true\n",
+									"discovery.type: ec2\n",
+									"node.rack_id: master\n",
+									"cloud.aws.region: ", { "Ref": "AWS::Region" }, "\n",
+									"cluster.routing.allocation.awareness.attributes: rack_id \n",
+									"discovery.ec2.groups: ", { "Ref" : "EsClusterNodeSg" }
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/etc/init/elasticsearch.conf" : {
+								"content" : { "Fn::Join" : ["", [
+									"script\n",
+									"    ulimit -n 40000\n",
+									"    export ES_HEAP_SIZE=",{ "Fn::FindInMap": [ "InstanceVariables", { "Ref": "MasterNodeInstanceType" }, "ram" ] },"m\n",
+									"    bash /home/usr/local/elasticsearch-1.3.2/bin/elasticsearch -Des.index.store.type=mmapfs -Des.config=/home/usr/local/elasticsearch.yml\n",
+									"end script\n",
+									"respawn limit 3 60"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							}
+						}
+					}
+				}
+			},
+			"Properties": {
+				"InstanceType" : { "Ref" : "MasterNodeInstanceType" },
+				"ImageId" : { "Ref" : "EsClusterAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" },
+				"AssociatePublicIpAddress": "false",
+				"SecurityGroups": [
+					{ "Ref" : "EsClusterNodeSg" }
+				],
+				"IamInstanceProfile": { "Ref" : "EsDataNodeInstanceProfile" },
+				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+					"#!/bin/bash\n",
+					"apt-get update\n",
+					"apt-get -y install python-setuptools default-jre\n",
+					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r EsMasterNodeLc -c config\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r EsBaseLc -c config"
+				]]}},
+				"BlockDeviceMappings" : [
+					{
+						"DeviceName" : "/dev/sda1",
+						"Ebs" : { "VolumeSize" : "30", "VolumeType" : "gp2" }
+					}
+				]
+			}
+		},
+		"EsMasterNodeAsg" : {
+		  "Type" : "AWS::AutoScaling::AutoScalingGroup",
+		  "Properties" : {
+		    "VPCZoneIdentifier": [
+				{ "Ref" : "Subnet1Id" }
+			],
+			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
+			"LaunchConfigurationName" : { "Ref" : "EsMasterNodeLc" },
+			"MinSize" : "2",
+			"MaxSize" : "4",
+			"DesiredCapacity" : "2",
+			"LoadBalancerNames" : [ { "Ref" : "EsMasterLoadBalancer" } ],
+			"Tags" : [{"Key": "Name", "Value" : "Elasticsearch Cluster Master Node", "PropagateAtLaunch" : "True"}]
+		  }
+		},
+		"EsMasterLoadBalancer" : {
+			"Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+			"Properties" : {
+				"Subnets": [
+					{ "Ref" : "Subnet1Id" }
+				],
+				"Listeners" : [
+				{
+					"LoadBalancerPort" : "9300",
+					"InstancePort" : "9300",
+					"Protocol" : "TCP"
+				},
+				{
+					"LoadBalancerPort" : "9200",
+					"InstancePort" : "9200",
+					"Protocol" : "HTTP"
+				}],
+				"HealthCheck" : {
+					"Target" : { "Fn::Join" : [ "", ["HTTP:9200/"]]},
+					"HealthyThreshold" : "3",
+					"UnhealthyThreshold" : "5",
+					"Interval" : "30",
+					"Timeout" : "5"
+				},
+				"AccessLoggingPolicy" : {
+					"EmitInterval": "5",
+					"Enabled": "true",
+					"S3BucketName": {"Ref": "LogBucket"}
+				},
+				"SecurityGroups": [{ "Ref": "EsElbSg" }],
+				"Scheme": "internal"
+			}
+		},
+
+		"EsDataNodeInstanceProfile": {
+			"Type": "AWS::IAM::InstanceProfile",
+			"Properties": {
+				"Path": "/elasticsearch/data/",
+				"Roles": [{ "Ref": "EsDataNodeRole" }]
+			}
+		},
+		"EsDataNodeRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": [ "ec2.amazonaws.com" ]
+							},
+							"Action": [ "sts:AssumeRole" ]
+						}
+					]
+				},
+				"Path": "/elasticsearch/data/",
+				"Policies": [{
+					"PolicyName": "root",
+					"PolicyDocument": {
+						"Version" : "2012-10-17",
+						"Statement": [{
+							"Effect": "Allow",
+							"Action": "EC2:Describe*",
+							"Resource": "*"
+						}]
+					}
+				}]
+			}
+		},
+
+		"EsClusterNodeSg" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" : {
+				"GroupDescription" : "Security group for elasticsearch cluster nodes to cluster.",
+				"SecurityGroupIngress" : [
+					{ "IpProtocol" : "6", "SourceSecurityGroupId" : { "Ref" : "EsClusterNodeSg" }, "FromPort" : "9300", "ToPort" : "9300" }
+				],
+				"SecurityGroupEgress" : [
+					{ "IpProtocol" : "6" ,  "CidrIp": "0.0.0.0/0", "FromPort" : "80", "ToPort" : "80"  },
+					{ "IpProtocol" : "6" ,  "CidrIp": "0.0.0.0/0", "FromPort" : "443", "ToPort" : "443"  }
+				],
+				"VpcId" : { "Ref" : "VpcId"},
+				"Tags": [{"Key": "Name", "Value" : "Es Cluster Data Nodes"}]
+			}
+		},
+		"EsClusterGatewayNodeSg" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" : {
+				"GroupDescription" : "Load Balancer targets.",
+				"SecurityGroupIngress" : [
+					{ "IpProtocol": "6", "SourceSecurityGroupId" : { "Ref" : "EsElbSg" }, "FromPort" : "9200", "ToPort" : "9200" }
+				],
+				"VpcId" : { "Ref" : "VpcId"},
+				"Tags": [{"Key": "Name", "Value" : "Es Cluster Gateway Nodes"}]
+			}
+		},
+		"EsElbSg" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" : {
+				"GroupDescription" : "Gateway to master nodes of the Elasticsearch Cluster",
+				"VpcId" : { "Ref" : "VpcId"},
+				"Tags": [{"Key": "Name", "Value" : "Es Cluster Load Balancer"}]
+			}
+		},
+		"EsElbTargetSg" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" : {
+				"GroupDescription" : "Load Balancer targets.",
+				"SecurityGroupEgress" : [
+					{ "IpProtocol": "6", "SourceSecurityGroupId" : { "Ref" : "EsElbSg" }, "FromPort" : "9200", "ToPort" : "9200" }
+				],
+				"VpcId" : { "Ref" : "VpcId"},
+				"Tags": [{"Key": "Name", "Value" : "Es Cluster Gateway Balancer"}]
+			}
+		}
+
+	},
+
+	"Outputs" : {
+		"EsClusterMasters" : {
+			"Value" : { "Fn::GetAtt" : ["EsMasterLoadBalancer", "DNSName"] },
+			"Description" : "Private A record for ES Master Node ELB"
+		}
+	}
+}
