@@ -413,7 +413,8 @@
 				"KeyName" : { "Ref" : "KeyPairName" },
 				"AssociatePublicIpAddress": "false",
 				"SecurityGroups": [
-					{ "Ref" : "EsClusterNodeSg" }
+					{ "Ref" : "EsClusterNodeSg" },
+					{ "Ref" : "EsClusterGatewayNodeSg" }
 				],
 				"IamInstanceProfile": { "Ref" : "EsDataNodeInstanceProfile" },
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
@@ -522,9 +523,6 @@
 			"Type" : "AWS::EC2::SecurityGroup",
 			"Properties" : {
 				"GroupDescription" : "Security group for elasticsearch cluster nodes to cluster.",
-				"SecurityGroupIngress" : [
-					{ "IpProtocol" : "6", "SourceSecurityGroupId" : { "Ref" : "EsClusterNodeSg" }, "FromPort" : "9300", "ToPort" : "9300" }
-				],
 				"SecurityGroupEgress" : [
 					{ "IpProtocol" : "6" ,  "CidrIp": "0.0.0.0/0", "FromPort" : "80", "ToPort" : "80"  },
 					{ "IpProtocol" : "6" ,  "CidrIp": "0.0.0.0/0", "FromPort" : "443", "ToPort" : "443"  }
@@ -533,6 +531,27 @@
 				"Tags": [{"Key": "Name", "Value" : "Es Cluster Data Nodes"}]
 			}
 		},
+		"EsClusterNodeSgSelfIngress" : {
+			"Type" : "AWS::EC2::SecurityGroupIngress",
+			"Properties" : {
+				"IpProtocol" : "tcp",
+				"ToPort" : "9300",
+				"FromPort" : "9300",
+				"GroupId" : { "Ref" : "EsClusterNodeSg" },
+				"SourceSecurityGroupId" : { "Ref" : "EsClusterNodeSg" }
+			}
+		},
+		"EsClusterNodeSgSelfEgress" : {
+			"Type": "AWS::EC2::SecurityGroupEgress",
+			"Properties":{
+				"IpProtocol": "tcp",
+				"FromPort": "9300",
+				"ToPort": "9300",
+				"GroupId": { "Ref" : "EsClusterNodeSg" },
+				"DestinationSecurityGroupId": { "Ref" : "EsClusterNodeSg" }
+			}
+		},
+
 		"EsClusterGatewayNodeSg" : {
 			"Type" : "AWS::EC2::SecurityGroup",
 			"Properties" : {
@@ -544,6 +563,17 @@
 				"Tags": [{"Key": "Name", "Value" : "Es Cluster Gateway Nodes"}]
 			}
 		},
+		"EsClusterGatewayNodeFromEsElbIngress" : {
+			"Type" : "AWS::EC2::SecurityGroupIngress",
+			"Properties" : {
+				"IpProtocol" : "tcp",
+				"ToPort" : "9200",
+				"FromPort" : "9200",
+				"GroupId" : { "Ref" : "EsClusterGatewayNodeSg" },
+				"SourceSecurityGroupId" : { "Ref" : "EsElbSg" }
+			}
+		},
+
 		"EsElbSg" : {
 			"Type" : "AWS::EC2::SecurityGroup",
 			"Properties" : {
@@ -552,15 +582,14 @@
 				"Tags": [{"Key": "Name", "Value" : "Es Cluster Load Balancer"}]
 			}
 		},
-		"EsElbTargetSg" : {
-			"Type" : "AWS::EC2::SecurityGroup",
-			"Properties" : {
-				"GroupDescription" : "Load Balancer targets.",
-				"SecurityGroupEgress" : [
-					{ "IpProtocol": "6", "SourceSecurityGroupId" : { "Ref" : "EsElbSg" }, "FromPort" : "9200", "ToPort" : "9200" }
-				],
-				"VpcId" : { "Ref" : "VpcId"},
-				"Tags": [{"Key": "Name", "Value" : "Es Cluster Gateway Balancer"}]
+		"EsElbToEsClusterGatewayNodeEgress" : {
+			"Type": "AWS::EC2::SecurityGroupEgress",
+			"Properties":{
+				"IpProtocol": "tcp",
+				"FromPort": "9200",
+				"ToPort": "9200",
+				"GroupId": { "Ref" : "EsElbSg" },
+				"DestinationSecurityGroupId": { "Ref" : "EsClusterGatewayNodeSg" }
 			}
 		}
 
