@@ -69,20 +69,21 @@
 		},
 
 		"VpcId": {
-			"Description" : "VPCid associated with the subnets.",
+			"Description" : "VPCid associated with the subnets. [subnets.input.VpcId]",
 			"Type": "String"
 		},
 		"Subnet1Id": {
-			"Description" : "Subnet to run HA web cluster on.",
+			"Description" : "Subnet to run HA web cluster on. [subnets.resources.Subnet1]",
 			"Type": "String"
 		},
 		"Subnet2Id": {
-			"Description" : "Subnet to run HA web cluster on.",
+			"Description" : "Subnet to run HA web cluster on. [subnets.resources.Subnet2]",
 			"Type": "String"
 		},
 		"Subnet3Id": {
-			"Description" : "Subnet to run HA web cluster on.",
-			"Type": "String"
+			"Description" : "Subnet to run HA web cluster on. [subnets.resources.Subnet3]",
+			"Type": "String",
+			"Default": ""
 		},
 		"LogBucket": {
 			"Description" : "Image id of the frontend",
