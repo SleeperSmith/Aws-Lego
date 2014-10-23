@@ -41,12 +41,21 @@
 		"AzCount" : {
 			"Description" : "Number of AZ. Third subnet will only be created if number is 3 [vpc.outputs.AzCount]",
 			"Type" : "String"
+		},
+
+		"AvailableAzs" : {
+			"Description" : "Comma-delimited list of three IP blocks",
+			"Type" : "CommaDelimitedList",
+			"Default" : ""
 		}
 
 	},
 
 	"Conditions" : {
-		"IsThreeAz" : { "Fn::Equals" : [{"Ref" : "AzCount"}, "3"]}
+		"IsThreeAz" : { "Fn::Equals" : [{"Ref" : "AzCount"}, "3"]},
+		"IsAzSupplied" : { "Fn::Not" : [{ "Fn::Equals" : [
+			{"Fn::Select": ["0", {"Ref" : "AvailableAzs"}]}, ""
+		]}]}
 	},
 
 	"Resources" : {
@@ -59,7 +68,7 @@
 					{ "Ref" : "VpcPrefix" }, ".", { "Ref" : "Subnet1Suffix" }, ".0/24"
 				]]},
 				"AvailabilityZone": { "Fn::Select": [
-					"0", { "Fn::GetAZs": "" }
+					"0", {"Fn::If" : [ "IsAzSupplied", {"Ref" : "AvailableAzs"}, { "Fn::GetAZs": "" } ]}
 				]},
 				"Tags" : []
 			}
@@ -87,7 +96,7 @@
 					{ "Ref" : "VpcPrefix" }, ".", { "Ref" : "Subnet2Suffix" }, ".0/24"
 				]]},
 				"AvailabilityZone": { "Fn::Select": [
-					"1", { "Fn::GetAZs": "" }
+					"1", {"Fn::If" : [ "IsAzSupplied", {"Ref" : "AvailableAzs"}, { "Fn::GetAZs": "" } ]}
 				]},
 				"Tags" : []
 			}
@@ -116,7 +125,7 @@
 					{ "Ref" : "VpcPrefix" }, ".", { "Ref" : "Subnet3Suffix" }, ".0/24"
 				]]},
 				"AvailabilityZone": { "Fn::Select": [
-					"2", { "Fn::GetAZs": "" }
+					"2", {"Fn::If" : [ "IsAzSupplied", {"Ref" : "AvailableAzs"}, { "Fn::GetAZs": "" } ]}
 				]},
 				"Tags" : []
 			}
@@ -196,6 +205,31 @@
 				"Egress" : "false",
 				"CidrBlock" : "0.0.0.0/0",
 				"PortRange" : { "From" : "1024", "To" : "65535" }
+			}
+		},
+
+		"RedShiftCsg" : {
+			"Type": "AWS::Redshift::ClusterSubnetGroup",
+			"Properties": {
+				"Description": "Redshift Cluster Subnet Group for Internet Access Subnets",
+				"SubnetIds": [
+					{"Ref": "Subnet1"},
+					{"Ref": "Subnet2"},
+					{"Fn::If":["IsThreeAz",{"Ref": "Subnet3"},{"Ref" : "AWS::NoValue"}]}
+				]
+			}
+		},
+
+		"RdsCsg": {
+			"Type" : "AWS::RDS::DBSubnetGroup",
+			"Properties" : {
+				"DBSubnetGroupDescription" : "Rds Subnet Group for Internet Access Subnets",
+				"SubnetIds" : [
+					{"Ref": "Subnet1"},
+					{"Ref": "Subnet2"},
+					{"Fn::If":["IsThreeAz",{"Ref": "Subnet3"},{"Ref" : "AWS::NoValue"}]}
+				],
+				"Tags" : []
 			}
 		}
 	}
