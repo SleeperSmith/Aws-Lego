@@ -208,10 +208,10 @@
 			}
 		},
 
-		"RedShiftCsg" : {
+		"RedShiftClusteredSubnetGroup" : {
 			"Type": "AWS::Redshift::ClusterSubnetGroup",
 			"Properties": {
-				"Description": "Redshift Cluster Subnet Group for Internet Access Subnets",
+				"Description": "Redshift Cluster Subnet Group for Internet Accessable Subnets",
 				"SubnetIds": [
 					{"Ref": "Subnet1"},
 					{"Ref": "Subnet2"},
@@ -220,16 +220,28 @@
 			}
 		},
 
-		"RdsCsg": {
+		"RdsSubnetGroup": {
 			"Type" : "AWS::RDS::DBSubnetGroup",
 			"Properties" : {
-				"DBSubnetGroupDescription" : "Rds Subnet Group for Internet Access Subnets",
+				"DBSubnetGroupDescription" : "Rds Subnet Group for Internet Accessable Subnets",
 				"SubnetIds" : [
 					{"Ref": "Subnet1"},
 					{"Ref": "Subnet2"},
 					{"Fn::If":["IsThreeAz",{"Ref": "Subnet3"},{"Ref" : "AWS::NoValue"}]}
 				],
 				"Tags" : []
+			}
+		},
+
+		"ElasticCacheSubnetGroup" : {
+			"Type" : "AWS::ElastiCache::SubnetGroup",
+			"Properties" : {
+				"Description" : "Elastic Cache Subnet Group for Internet Accessable Subnet",
+				"SubnetIds" : [
+					{"Ref": "Subnet1"},
+					{"Ref": "Subnet2"},
+					{"Fn::If":["IsThreeAz",{"Ref": "Subnet3"},{"Ref" : "AWS::NoValue"}]}
+				]
 			}
 		}
 	}
