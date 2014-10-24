@@ -137,7 +137,7 @@ function Get-StackLinkParameters {
         }
 
         if ($value -ne $null) {
-            $StackParameters.Add(@{"Key" = $cfnParameter.ParameterKey; "Value" = $value})
+            $StackParameters += @{"Key" = $cfnParameter.ParameterKey; "Value" = $value}
         }
 
     }
