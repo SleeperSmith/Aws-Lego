@@ -243,6 +243,7 @@
 									"a2dissite 000-default\n",
 									"a2ensite phabricator\n",
 									"service apache2 restart\n",
+									"useradd daemon-user\n",
 									"./bin/phd start\n"
 								]]},
 								"mode"   : "000755",
