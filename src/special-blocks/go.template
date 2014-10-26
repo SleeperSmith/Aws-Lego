@@ -49,7 +49,7 @@
 		"AgentSpotInstanceType" : {
 			"Description" : "WebServer EC2 instance type",
 			"Type" : "String",
-			"Default" : "m3.medium",
+			"Default" : "m3.large",
 			"AllowedValues": [
 				"m3.medium",
 				"m3.large",
@@ -65,7 +65,7 @@
 		},
 		"WindowsAgentAmi": {
 			"Description": "AMI to use. Note Ubuntu is prefered.",
-			"Default": "ami-fddabdc7",
+			"Default": "ami-458eee7f",
 			"Type": "String"
 		},
 		"LinuxAgentAmi": {
@@ -115,8 +115,8 @@
 		"InstanceVariables" : {
 			"t2.small": { "ram" : "950" },
 			"t2.medium": { "ram" : "1950" },
-			"m3.medium": { "ram" : "1800", "lspotprice": "0.028", "wspotprice": "0.068" },
-			"m3.large": { "ram" : "3600", "lspotprice": "0.056", "wspotprice": "0.135" },
+			"m3.medium": { "ram" : "1800", "lspotprice": "0.028", "wspotprice": "0.08" },
+			"m3.large": { "ram" : "3600", "lspotprice": "0.056", "wspotprice": "0.15" },
 			"m3.xlarge": { "ram" : "7000", "lspotprice": "0.111", "wspotprice": "0.271" },
 			"m3.2xlarge": { "ram" : "14500", "lspotprice": "0.222", "wspotprice": "0.543" },
 			"r3.large": { "ram" : "7500", "lspotprice": "0.065", "wspotprice": "0.155" },
@@ -131,15 +131,23 @@
 
 		"GoServer" : {
 			"Type" : "AWS::EC2::Instance",
-						"Metadata" : {
+			"Metadata" : {
 				"AWS::CloudFormation::Init" : {
 					"configSets": {
 						"config": [
-							"install-go",
+							"install-packages",
 							"initialise-go"
 						]
 					},
-					"install-go" : {
+					"install-packages" : {
+						"packages": {
+							"apt": {
+								"unzip": [],
+								"xmlstarlet": [],
+								"subversion": [],
+								"git": []
+							}
+						},
 						"files" : {
 							"/home/usr/local/go-server.deb" : {
 								"source" : { "Ref": "GoServerBin" },
@@ -150,7 +158,12 @@
 						},
 						"commands" : {
 							"1-install": {
-								"command" : "dpkg -i go-server.deb",
+								"command" : "dpkg -i go-server.deb &",
+								"cwd" : "/home/usr/local/",
+								"ignoreErrors" : "false"
+							},
+							"1-wait": {
+								"command" : "sleep 5m",
 								"cwd" : "/home/usr/local/",
 								"ignoreErrors" : "false"
 							}
@@ -163,7 +176,8 @@
 									"#!/bin/bash\n",
 									"mkfs -t ext4 /dev/$1\n",
 									"mkdir /mnt/$1\n",
-									"mount -t ext4 /dev/$1 /mnt/$1\n"
+									"mount -t ext4 /dev/$1 /mnt/$1\n",
+									"chmod 777 /mnt/$1"
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
@@ -183,7 +197,7 @@
 							},
 							"3-set-agent-key": {
 								"command" : { "Fn::Join" : ["", [
-									"xmlstarlet ed -L -i \"/cruise/server\" -t attr -n agentAutoRegisterKey -v \"Password1234\" cruise-config.xml"
+									"xmlstarlet ed -L -i \"/cruise/server\" -t attr -n agentAutoRegisterKey -v \"", { "Ref" : "GoAgentKey" }, "\" cruise-config.xml"
 								]]},
 								"cwd" : "/etc/go/",
 								"ignoreErrors" : "false"
@@ -207,9 +221,10 @@
 				"InstanceType" : { "Ref" : "ServerInstanceType" },
 				"ImageId" : { "Ref" : "ServerAmi" },
 				"KeyName" : { "Ref" : "KeyPairName" },
-				"SecurityGroups": [
+				"SecurityGroupIds": [
 					{ "Ref" : "ServerSg" }
 				],
+				"SubnetId": { "Ref" : "securityOutSubnet1Id"},
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
 					"#!/bin/bash\n",
 					"apt-get update\n",
@@ -220,7 +235,7 @@
 				"BlockDeviceMappings": [
 					{
 						"DeviceName" : "/dev/sda1",
-						"Ebs" : { "VolumeSize" : "40", "VolumeType" : "gp2" }
+						"Ebs": { "VolumeSize": "40", "VolumeType": "gp2" }
 					},
 					{
 						"DeviceName" : "/dev/xvdk",
@@ -235,6 +250,95 @@
 
 		"GoWindowsAgentLc" : {
 			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Metadata"  : {
+                "AWS::CloudFormation::Init": {
+                    "configSets": {
+                        "config": [
+                            "init",
+                            "rename",
+                            "dcpromo",
+                            "createsite",
+                            "finalize"
+                        ]
+                    },
+                    "init"    : {
+                        "files": {
+                            "C:\\cfn\\bin\\GoWindowsAgentBin.zip": {
+                                "source": { "Ref": "GoWindowsAgentBin" }
+                            },
+							"C:\\cfn\\config\\autoregister.properties": {
+                                "content": {"Fn::Join": ["",[
+                                    "agent.auto.register.key=", { "Ref" : "GoAgentKey" },
+                                    "agent.auto.register.resources=.Net",
+									"agent.auto.register.environments=AWS"
+                                ]]}
+                            },
+							"C:\\cfn\\scripts\\CreateAgent.ps1": {
+                                "content": {"Fn::Join": ["",[
+                                    "param(\n",
+                                    "    [string]$BinZipPath,\n",
+                                    "    [string]$Destination,\n",
+                                    "    [string]$AutoRegisterProperties\n",
+                                    ")\n",
+
+                                    "function Expand-ZipFile($file, $destination)\n",
+                                    "{\n",
+                                    "    $shell = new-object -com shell.application\n",
+                                    "    $zip = $shell.NameSpace($file)\n",
+                                    "    foreach($item in $zip.items())\n",
+                                    "    {\n",
+                                    "        $shell.Namespace($destination).copyhere($item)\n",
+                                    "    }\n",
+                                    "}\n",
+
+                                    "$a = 1\n",
+                                    "do\n",
+                                    "{\n",
+                                    "    Expand-ZipFile –File $BinZipPath –Destination $Destination\n",
+                                    "    Get-ChildItem $Destination -Filter \"go-agent*\" | % {\n",
+                                    "        Write-Host $_.FullName\n",
+                                    "        Rename-Item $_.FullName -NewName \"Agent$a\"\n",
+                                    "        Copy-Item $AutoRegisterProperties \"$Destination\\Agent$a\\config\\autoregister.properties\"\n",
+                                    "    }\n",
+                                    "    New-Service -Name \"GoAgent$a\" -BinaryPathName \"$Destination\\Agen$a2\\cruisewrapper.exe -s `\"$Destination\\Agen$a2\\config\\wrapper-agent.conf`\"\"\n",
+                                    "    Start-Service -Name \"GoAgent$a\"\n",
+                                    "    $a++\n",
+                                    "}\n",
+                                    "while ($a -le 1)\n"
+                                ]]}
+                            }
+                        },
+                        "commands": {
+							"1-set-go-server-ip": {
+                                "command": { "Fn::Join": [ "", [
+                                    "setx GO_SERVER ", { "Fn::GetAtt" : ["GoServer", "PrivateIp"] }, "\\m"
+                                ]]},
+                                "waitAfterCompletion": "0"
+                            },
+                            "2-dc-promo": {
+                                "command": { "Fn::Join": [ "", [
+                                    "powershell.exe -ExecutionPolicy Unrestricted",
+                                    " C:\\cfn\\scripts\\CreateAgent.ps1",
+									" -BinZipPath C:\\cfn\\bin\\GoWindowsAgentBin.zip",
+                                    " -Destination Z:\\",
+                                    " -AutoRegisterProperties C:\\cfn\\config\\autoregister.properties"
+                                ]]},
+                                "waitAfterCompletion": "60"
+                            }
+							
+                        }
+                    },
+                    "finalize"   : {
+                        "commands": {
+							"3-signal-success": {
+                                "command": { "Fn::Join": [ "", [
+                                    "cfn-signal.exe -e %ERRORLEVEL% \"\""
+                                ]]}
+                            }
+                        }
+                    }
+                }
+            },
 			"Properties": {
 				"InstanceType" : { "Ref" : "AgentInstanceType" },
 				"ImageId" : { "Ref" : "WindowsAgentAmi" },
@@ -258,7 +362,7 @@
 			"VPCZoneIdentifier": [
 				{ "Ref" : "securityOutSubnet1Id" }
 			],
-			"AvailabilityZones" : { "Fn::GetAZs": "" },
+			"AvailabilityZones": [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
 			"LaunchConfigurationName" : { "Ref" : "GoWindowsAgentLc" },
 			"MinSize" : "0",
 			"MaxSize" : "20",
@@ -290,7 +394,8 @@
 			"Type" : "AWS::AutoScaling::AutoScalingGroup",
 			"Properties" : {
 				"VPCZoneIdentifier": [
-					{ "Ref" : "securityOutSubnet1Id" }
+					{ "Ref" : "securityOutSubnet1Id" },
+					{ "Ref" : "securityOutSubnet2Id" }
 				],
 				"AvailabilityZones" : { "Fn::GetAZs": "" },
 				"LaunchConfigurationName" : { "Ref" : "GoWindowsAgentSpotLc" },
