@@ -133,7 +133,7 @@
                     "autocommit": "1", 
                     "general_log": "1", 
                     "old_passwords": "0",
-					"innodb_strict_mode": "1",
+					"sql_mode": "STRICT_ALL_TABLES",
 					"ft_min_word_len": "3"
                 }
             }, 
@@ -200,6 +200,7 @@
 							},
 							"/usr/local/phabricator/misc.sh" : {
 								"content" : { "Fn::Join" : ["", [
+									"ln -s /usr/lib/git-core/git-http-backend /usr/local/phabricator/support/bin/git-http-backend\n",
 									"./bin/storage upgrade -f\n",
 									"./bin/phd start\n",
 									"echo \"www-data ALL=(daemon-user) SETENV: NOPASSWD: /usr/lib/git-core/git-http-backend, /usr/bin/hg\" >> /etc/sudoers\n",
@@ -230,7 +231,7 @@
 								"group"  : "ubuntu"
 							}
 						},
-						"command" : {
+						"commands" : {
 							"0-dbupser" : {
 								"command" : "bash mount-disk.sh",
 								"cwd" : "/usr/local"
