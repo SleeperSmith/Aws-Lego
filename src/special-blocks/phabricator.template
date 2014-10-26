@@ -1,0 +1,260 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+
+	"Description": "A template to launch elasticsearch cluster.",
+
+	"Parameters": {
+		"KeyPairName": {
+			"Description": "Name of an existing EC2 KeyPair to enable SSH access to the instances",
+			"Type": "String"
+		},
+
+		"DbStorageQuota" : {
+			"Description": "Disk size of MySql server.",
+			"Default": "5",
+			"Type": "Number"
+		},
+		"DbInstanceTyp" : {
+			"Description" : "MySql server instance type",
+			"Type" : "String",
+			"Default" : "db.t2.small",
+			"AllowedValues": [
+				"db.t2.micro",
+				"db.t2.small",
+				"db.t2.medium",
+				"db.m3.medium",
+				"db.m3.large",
+				"db.m3.xlarge",
+				"db.m3.2xlarge",
+				"db.r3.large",
+				"db.r3.xlarge",
+				"db.r3.2xlarge",
+				"db.r3.4xlarge",
+				"db.r3.8xlarge"
+			],
+			"ConstraintDescription" : "must be a valid RDS instance type."
+		},
+		"DbUsername" : {
+			"Description" : "MySql server username",
+			"Type" : "String",
+			"Default" : "sqladmin"
+		},
+		"DbPassword" : {
+			"Description" : "MySql server password",
+			"Type" : "String",
+			"NoEcho" : "True"
+		},
+		"DbSnapshot" : {
+			"Description" : "MySql server snapshot",
+			"Type" : "String",
+			"Default" : ""
+		},
+		"DbSubnetGroup" : {
+			"Description" : "Subnet Group for hosting the MySql server. [subnets.resources.RdsSubnetGroup]",
+			"Type" : "String"
+		},
+
+		"RepoDiskSnapshot" : {
+			"Description" : "Snapshot of repository disk",
+			"Type" : "String",
+			"Default" : ""
+		},
+
+		"WebInstanceTyp" : {
+			"Description" : "Phabricator server instance type",
+			"Type" : "String",
+			"Default" : "t2.small",
+			"AllowedValues": [
+				"t2.micro",
+				"t2.small",
+				"t2.medium",
+				"m3.medium",
+				"m3.large",
+				"m3.xlarge",
+				"m3.2xlarge"
+			],
+			"ConstraintDescription" : "must be a valid EC2 instance type."
+		},
+		"UbuntuAmi": {
+			"Description": "AMI to use. Note Ubuntu is prefered.",
+			"Default": "ami-fddabdc7",
+			"Type": "String"
+		},
+		"VpcId": {
+			"Description" : "VPCid associated with the subnets. [vpc.resources.Vpc]",
+			"Type": "String"
+		}
+	},
+
+	"Conditions" : {
+		"HasDbSnapshot" : {"Fn::Not": [{"Fn::Equals": [
+			{"Ref": "DbSnapshot"}, ""
+		]}]},
+		"HasRepoSnapshot" : {"Fn::Not": [{"Fn::Equals": [
+			{"Ref": "RepoDiskSnapshot"}, ""
+		]}]}
+	},
+
+	"Resources" : {
+
+		"Database" : {
+			"Type" : "AWS::RDS::DBInstance",
+			"Properties" : {
+				"VPCSecurityGroups" : [
+					{"Ref": "DatabaseSg"}
+				],
+				"AllocatedStorage" : {"Ref": "DbStorageQuota"},
+				"DBInstanceClass" : {"Ref": "DbInstanceTyp"},
+				"DBParameterGroupName" : {"Ref": "DbParamGroup"},
+				"Engine" : "MySQL",
+				"MasterUsername" : {"Ref": "DbUsername"},
+				"MasterUserPassword" : {"Ref": "DbPassword"},
+				"DBSnapshotIdentifier" : {"Fn::If": [
+					"HasDbSnapshot", {"Ref": "DbSnapshot"}, {"Ref" : "AWS::NoValue"}
+				]},
+				"DBSubnetGroupName" : {"Ref":"DbSubnetGroup"}
+			},
+			"DeletionPolicy" : "Snapshot"
+		}, 
+        "DbParamGroup": {
+            "Properties": {
+                "Description": "CloudFormation Sample Database Parameter Group", 
+                "Family": "MySQL5.6", 
+                "Parameters": {
+                    "autocommit": "1", 
+                    "general_log": "1", 
+                    "old_passwords": "0"
+                }
+            }, 
+            "Type": "AWS::RDS::DBParameterGroup"
+        },
+
+		"RepoDisk" : {
+			"Type":"AWS::EC2::Volume",
+			"Properties" : {
+				"AvailabilityZone" : {"Fn::Select":["0", { "Fn::GetAZs": "" }]},
+				"Size" : "5",
+				"SnapshotId" : "",
+				"Tags" : [],
+				"VolumeType" : "standard"
+			},
+			"DeletionPolicy" : "Snapshot"
+		},
+
+		"PhabricatorWeb" : {
+			"Type" : "AWS::EC2::Instance",
+			"DependsOn" : "Database",
+			"Metadata" : {
+				"AWS::CloudFormation::Init" : {
+					"configSets": {
+						"config": [
+							"download-files",
+							"configure"
+						]
+					},
+					"download-files" : {
+						"source": {
+							"/usr/local/libphutil" : "https://github.com/phacility/libphutil/tarball/master",
+							"/usr/local/arcanist" : "https://github.com/phacility/arcanist/tarball/master",
+							"/usr/local/phabricator" : "https://github.com/phacility/phabricator/tarball/master"
+						}
+					},
+					"configure" : {
+						"files" : {
+							"/usr/local/phabricator/bin/configure.sh" : {
+								"content" : { "Fn::Join" : ["", [
+									"config set mysql.host ", {"Fn::GetAtt" : [ "Database", "Endpoint.Address"]},"\n",
+									"config set mysql.user ", {"Ref":"DbUsername"}
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							}
+						},
+						"command" : {
+							"0-misc-configs" : {
+								"command" : "bash configure.sh",
+								"cwd" : "/usr/local/phabricator/bin"
+							},
+							"1-dbpass" : {
+								"command" : { "Fn::Join" : ["", [
+									"config set mysql.pass ", {"Ref":"DbPassword"}
+								]]},
+								"cwd" : "/usr/local/phabricator/bin"
+							}
+						}
+					}
+				}
+			},
+			"Properties": {
+				"InstanceType" : { "Ref" : "WebInstanceTyp" },
+				"KeyName" : { "Ref" : "KeyPairName" },
+				"ImageId" : { "Ref" : "UbuntuAmi" },
+				"SecurityGroupIds": [
+					{"Ref":"WebServerSg"}
+				],
+				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+					"#!/bin/bash\n",
+					"apt-get -qq update\n",
+					"apt-get -qq -y install python-setuptools\n",
+					"apt-get -qq -y install git mysql-server nginx dpkg-dev\n",
+					"apt-get -qq -y php5 php5-mysql php5-gd php5-dev php5-curl php-apc php5-cli php5-json\n",
+					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r PhabricatorWeb -c config"
+				]]}},
+				"BlockDeviceMappings" : [
+					{
+						"DeviceName" : "/dev/sda1",
+						"Ebs" : { "VolumeSize" : "30", "VolumeType" : "gp2" }
+					}
+				]
+			}
+		},
+
+		"DatabaseSg" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" : {
+				"GroupDescription" : "Phabricator rds mysql server security group.",
+				"VpcId" : { "Ref" : "VpcId"},
+				"Tags": [{"Key": "Name", "Value" : "Es Cluster Load Balancer"}]
+			}
+		},
+		"WebServerSg" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" : {
+				"GroupDescription" : "Phabricator web server security group.",
+				"SecurityGroupEgress" : [
+					{ "IpProtocol" : "6" ,  "CidrIp": "0.0.0.0/0", "FromPort" : "80", "ToPort" : "80"  },
+					{ "IpProtocol" : "6" ,  "CidrIp": "0.0.0.0/0", "FromPort" : "443", "ToPort" : "443"  }
+				],
+				"VpcId" : { "Ref" : "VpcId"},
+				"Tags": [{"Key": "Name", "Value" : "Es Cluster Load Balancer"}]
+			}
+		},
+		"WebToDatabaseEgress" : {
+			"Type": "AWS::EC2::SecurityGroupEgress",
+			"Properties":{
+				"IpProtocol": "tcp",
+				"FromPort": "3306",
+				"ToPort": "3306",
+				"GroupId": { "Ref" : "WebServerSg" },
+				"DestinationSecurityGroupId": { "Ref" : "DatabaseSg" }
+			}
+		},
+		"WebToDatabaseIngress" : {
+			"Type" : "AWS::EC2::SecurityGroupIngress",
+			"Properties" : {
+				"IpProtocol" : "tcp",
+				"ToPort" : "3306",
+				"FromPort" : "3306",
+				"GroupId" : { "Ref" : "DatabaseSg" },
+				"SourceSecurityGroupId" : { "Ref" : "WebServerSg" }
+			}
+		}
+
+
+	},
+
+	"Outputs" : {
+	}
+}
