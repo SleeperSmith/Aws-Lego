@@ -186,9 +186,9 @@ function Upsert-StackLink(
     $Tags += @{"Key" = $templateNameTag; "Value" = $templateName}
 
     if ((Get-CFNStack | ? { $_.StackName -eq $StackName}).Count -eq 0) {
-        $stackId = New-CFNStack -StackName $StackName -Parameters $StackParameters -TemplateURL $TemplateUrl -Tags $tags
+        $stackId = New-CFNStack -StackName $StackName -Parameters $StackParameters -TemplateURL $TemplateUrl -Tags $tags -Capabilities "CAPABILITY_IAM"
     } elseif ($UpdateExisting) {
-        $stackId = Update-CFNStack -StackName $StackName -Parameters $StackParameters -TemplateURL $TemplateUrl
+        $stackId = Update-CFNStack -StackName $StackName -Parameters $StackParameters -TemplateURL $TemplateUrl -Capabilities "CAPABILITY_IAM"
     }
     Write-Host StackArn: $stackId
     Write-Host "## End New-StackLink ##"
