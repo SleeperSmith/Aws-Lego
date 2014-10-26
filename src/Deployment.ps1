@@ -11,13 +11,15 @@ function New-Deployment {
 
     $prefix = "$projectname/$version/"
     $oldfiles = Get-S3Object -BucketName $bucketname -KeyPrefix $prefix | % {
-        $_.Key
+        Write-Host "Uploading > $($_.Key)"
     }
     if ($oldfiles.Count -gt 0) {
-        Remove-S3Object -BucketName $bucketname -Keys $oldfiles -Force
+        $removedObjects = Remove-S3Object -BucketName $bucketname -Keys $oldfiles -Force
     }
-    Write-S3Object -BucketName $bucketname -KeyPrefix $prefix -Folder $deployroot -Recurse
-    
+    $writtenObjects = Write-S3Object -BucketName $bucketname -KeyPrefix $prefix -Folder $deployroot -Recurse
+    $region = (Get-DefaultAWSRegion).Region
+    $deploymentUrl = "https://s3-$region.amazonaws.com/$bucketname/$projectname/$version/"
+    return $deploymentUrl
 }
 
 function InternalMatchTag {
