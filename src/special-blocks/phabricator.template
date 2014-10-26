@@ -188,10 +188,11 @@
 									"./config set mysql.host ", {"Fn::GetAtt" : [ "Database", "Endpoint.Address"]},"\n",
 									"./config set mysql.user ", {"Ref":"DbUsername"}, "\n",
 									"./config set mysql.pass ", {"Ref":"DbPassword"}, "\n",
+									"./config set phd.user daemon-user\n",
 									"./config set phabricator.timezone ", {"Ref": "WebTimezone"}, "\n",
-									"./config set phabricator.storage.upload-size-limit 5M\n",
-									"./config set phabricator.repository.default-local-path /mnt/xvdb",
-									"./config set phabricator.base-uri $(curl http://169.254.169.254/latest/meta-data/public-ipv4)"
+									"./config set storage.upload-size-limit 5M\n",
+									"./config set repository.default-local-path /mnt/xvdb\n",
+									"./config set phabricator.base-uri \"http://$(curl http://169.254.169.254/latest/meta-data/public-ipv4)\""
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
@@ -201,6 +202,7 @@
 								"content" : { "Fn::Join" : ["", [
 									"./bin/storage upgrade -f\n",
 									"./bin/phd start\n",
+									"echo \"www-data ALL=(daemon-user) SETENV: NOPASSWD: /usr/lib/git-core/git-http-backend, /usr/bin/hg\" >> /etc/sudoers\n",
 									"a2enmod rewrite\n",
 									"a2dissite 000-default\n",
 									"a2ensite phabricator\n",
