@@ -17,7 +17,7 @@
 		"DbInstanceTyp" : {
 			"Description" : "MySql server instance type",
 			"Type" : "String",
-			"Default" : "db.t2.small",
+			"Default" : "db.t2.micro",
 			"AllowedValues": [
 				"db.t2.micro",
 				"db.t2.small",
@@ -63,7 +63,7 @@
 		"WebInstanceTyp" : {
 			"Description" : "Phabricator server instance type",
 			"Type" : "String",
-			"Default" : "t2.small",
+			"Default" : "t2.micro",
 			"AllowedValues": [
 				"t2.micro",
 				"t2.small",
@@ -75,9 +75,18 @@
 			],
 			"ConstraintDescription" : "must be a valid EC2 instance type."
 		},
+		"WebTimezone" : {
+			"Description": "Timezone of the web server.",
+			"Default": "Australia/Sydney",
+			"Type": "String"
+		},
 		"UbuntuAmi": {
 			"Description": "AMI to use. Note Ubuntu is prefered.",
 			"Default": "ami-fddabdc7",
+			"Type": "String"
+		},
+		"Subnet1Id": {
+			"Description" : "Subnet to run HA web cluster on. [subnets.resources.Subnet1]",
 			"Type": "String"
 		},
 		"VpcId": {
@@ -123,7 +132,9 @@
                 "Parameters": {
                     "autocommit": "1", 
                     "general_log": "1", 
-                    "old_passwords": "0"
+                    "old_passwords": "0",
+					"innodb_strict_mode": "1",
+					"ft_min_word_len": "3"
                 }
             }, 
             "Type": "AWS::RDS::DBParameterGroup"
@@ -153,7 +164,7 @@
 						]
 					},
 					"download-files" : {
-						"source": {
+						"sources": {
 							"/usr/local/libphutil" : "https://github.com/phacility/libphutil/tarball/master",
 							"/usr/local/arcanist" : "https://github.com/phacility/arcanist/tarball/master",
 							"/usr/local/phabricator" : "https://github.com/phacility/phabricator/tarball/master"
@@ -161,10 +172,55 @@
 					},
 					"configure" : {
 						"files" : {
+							"/usr/local/mount-disk.sh" : {
+								"content" : { "Fn::Join" : ["\n", [
+									"mkfs -t ext4 /dev/xvdb",
+									"sudo mkdir /mnt/xvdb",
+									"sudo mount -t ext4 /dev/xvdb /mnt/xvdb"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
 							"/usr/local/phabricator/bin/configure.sh" : {
 								"content" : { "Fn::Join" : ["", [
-									"config set mysql.host ", {"Fn::GetAtt" : [ "Database", "Endpoint.Address"]},"\n",
-									"config set mysql.user ", {"Ref":"DbUsername"}
+									"./config set mysql.host ", {"Fn::GetAtt" : [ "Database", "Endpoint.Address"]},"\n",
+									"./config set mysql.user ", {"Ref":"DbUsername"}, "\n",
+									"./config set mysql.pass ", {"Ref":"DbPassword"}, "\n",
+									"./config set phabricator.timezone ", {"Ref": "WebTimezone"}, "\n",
+									"./config set phabricator.storage.upload-size-limit 5M\n",
+									"./config set phabricator.repository.default-local-path /mnt/xvdb"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/usr/local/phabricator/misc.sh" : {
+								"content" : { "Fn::Join" : ["", [
+									"./bin/storage upgrade -f\n",
+									"./bin/phd start\n",
+									"a2enmod rewrite\n",
+									"a2dissite 000-default\n",
+									"a2ensite phabricator\n",
+									"service apache2 restart\n"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/etc/apache2/sites-available/phabricator.conf" : {
+								"content" : { "Fn::Join" : ["", [
+									"<VirtualHost *>\n",
+										"ServerName ", {"Fn::GetAtt": ["PhabricatorWeb", "PrivateIp"]}, "\n",
+										"DocumentRoot /usr/local/phabricator/webroot\n",
+										"RewriteEngine on\n",
+										"RewriteRule ^/rsrc/(.*)     -                       [L,QSA]\n",
+										"RewriteRule ^/favicon.ico   -                       [L,QSA]\n",
+										"RewriteRule ^(.*)$          /index.php?__path__=$1  [B,L,QSA]\n",
+									"</VirtualHost>\n",
+										"<Directory \"/usr/local/phabricator/webroot\">\n",
+										"Require all granted\n",
+									"</Directory>"
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
@@ -172,15 +228,17 @@
 							}
 						},
 						"command" : {
-							"0-misc-configs" : {
+							"0-dbupser" : {
+								"command" : "bash mount-disk.sh",
+								"cwd" : "/usr/local"
+							},
+							"1-misc-configs" : {
 								"command" : "bash configure.sh",
 								"cwd" : "/usr/local/phabricator/bin"
 							},
-							"1-dbpass" : {
-								"command" : { "Fn::Join" : ["", [
-									"config set mysql.pass ", {"Ref":"DbPassword"}
-								]]},
-								"cwd" : "/usr/local/phabricator/bin"
+							"3-dbupsert" : {
+								"command" : "bash misc.sh",
+								"cwd" : "/usr/local/phabricator"
 							}
 						}
 					}
@@ -190,15 +248,21 @@
 				"InstanceType" : { "Ref" : "WebInstanceTyp" },
 				"KeyName" : { "Ref" : "KeyPairName" },
 				"ImageId" : { "Ref" : "UbuntuAmi" },
-				"SecurityGroupIds": [
-					{"Ref":"WebServerSg"}
-				],
+				"NetworkInterfaces" : [
+				{
+					"AssociatePublicIpAddress" : "true",
+					"SubnetId" : { "Ref": "Subnet1Id" },
+					"DeviceIndex" : "0",
+					"GroupSet" : [
+						{"Ref":"WebServerSg"}
+					]
+				}],
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
 					"#!/bin/bash\n",
 					"apt-get -qq update\n",
 					"apt-get -qq -y install python-setuptools\n",
-					"apt-get -qq -y install git mysql-server nginx dpkg-dev\n",
-					"apt-get -qq -y php5 php5-mysql php5-gd php5-dev php5-curl php-apc php5-cli php5-json\n",
+					"apt-get -qq -y install git apache2 dpkg-dev\n",
+					"apt-get -qq -y install php5 php5-mysql php5-gd php5-dev php5-curl php-apc php5-cli php5-json\n",
 					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
 					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r PhabricatorWeb -c config"
 				]]}},
@@ -207,6 +271,9 @@
 						"DeviceName" : "/dev/sda1",
 						"Ebs" : { "VolumeSize" : "30", "VolumeType" : "gp2" }
 					}
+				],
+				"Volumes" : [
+					{"Device": "xvdb", "VolumeId" : {"Ref": "RepoDisk"}}
 				]
 			}
 		},
