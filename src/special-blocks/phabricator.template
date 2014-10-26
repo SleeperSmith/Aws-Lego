@@ -75,9 +75,13 @@
 			],
 			"ConstraintDescription" : "must be a valid EC2 instance type."
 		},
-		"WebTimezone" : {
+		"PhabTimezone" : {
 			"Description": "Timezone of the web server.",
 			"Default": "Australia/Sydney",
+			"Type": "String"
+		},
+		"PhabMailAddress" : {
+			"Description": "Phabricator mail address.",
 			"Type": "String"
 		},
 		"UbuntuAmi": {
@@ -125,20 +129,20 @@
 			},
 			"DeletionPolicy" : "Snapshot"
 		}, 
-        "DbParamGroup": {
-            "Properties": {
-                "Description": "CloudFormation Sample Database Parameter Group", 
-                "Family": "MySQL5.6", 
-                "Parameters": {
-                    "autocommit": "1", 
-                    "general_log": "1", 
-                    "old_passwords": "0",
+		"DbParamGroup": {
+			"Type": "AWS::RDS::DBParameterGroup",
+			"Properties": {
+				"Description": "CloudFormation Sample Database Parameter Group", 
+				"Family": "MySQL5.6", 
+				"Parameters": {
+					"autocommit": "1", 
+					"general_log": "1", 
+					"old_passwords": "0",
 					"sql_mode": "STRICT_ALL_TABLES",
 					"ft_min_word_len": "3"
-                }
-            }, 
-            "Type": "AWS::RDS::DBParameterGroup"
-        },
+				}
+			} 
+		},
 
 		"RepoDisk" : {
 			"Type":"AWS::EC2::Volume",
@@ -179,7 +183,6 @@
 			}
 		},
 
-
 		"PhabricatorWeb" : {
 			"Type" : "AWS::EC2::Instance",
 			"DependsOn" : "Database",
@@ -217,10 +220,11 @@
 									"./config set mysql.user ", {"Ref":"DbUsername"}, "\n",
 									"./config set mysql.pass ", {"Ref":"DbPassword"}, "\n",
 									"./config set phd.user daemon-user\n",
-									"./config set phabricator.timezone ", {"Ref": "WebTimezone"}, "\n",
+									"./config set phabricator.timezone ", {"Ref": "PhabTimezone"}, "\n",
 									"./config set storage.upload-size-limit 5M\n",
 									"./config set diffusion.allow-http-auth true\n",
 									"./config set metamta.mail-adapter PhabricatorMailImplementationAmazonSESAdapter\n",
+									"./config set metamta.default-address ", {"Ref": "PhabMailAddress"}, "\n",
 									"./config set amazon-ses.access-key ", { "Ref": "PhabricatorServiceAccountKeySecret" }, "\n",
 									"./config set amazon-ses.secret-key ", { "Fn::GetAtt": ["PhabricatorServiceAccountKeySecret", "SecretAccessKey"] }, "\n",
 									"./config set repository.default-local-path /mnt/xvdb\n",
@@ -234,12 +238,12 @@
 								"content" : { "Fn::Join" : ["", [
 									"ln -s /usr/lib/git-core/git-http-backend /usr/local/phabricator/support/bin/git-http-backend\n",
 									"./bin/storage upgrade -f\n",
-									"./bin/phd start\n",
 									"echo \"www-data ALL=(daemon-user) SETENV: NOPASSWD: /usr/lib/git-core/git-http-backend, /usr/bin/hg\" >> /etc/sudoers\n",
 									"a2enmod rewrite\n",
 									"a2dissite 000-default\n",
 									"a2ensite phabricator\n",
-									"service apache2 restart\n"
+									"service apache2 restart\n",
+									"./bin/phd start\n"
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
@@ -354,8 +358,6 @@
 				"SourceSecurityGroupId" : { "Ref" : "WebServerSg" }
 			}
 		}
-
-
 	},
 
 	"Outputs" : {
