@@ -176,7 +176,8 @@
 								"content" : { "Fn::Join" : ["\n", [
 									"mkfs -t ext4 /dev/xvdb",
 									"sudo mkdir /mnt/xvdb",
-									"sudo mount -t ext4 /dev/xvdb /mnt/xvdb"
+									"sudo mount -t ext4 /dev/xvdb /mnt/xvdb",
+									"chown www-data /mnt/xvdb/ -R"
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
@@ -189,7 +190,8 @@
 									"./config set mysql.pass ", {"Ref":"DbPassword"}, "\n",
 									"./config set phabricator.timezone ", {"Ref": "WebTimezone"}, "\n",
 									"./config set phabricator.storage.upload-size-limit 5M\n",
-									"./config set phabricator.repository.default-local-path /mnt/xvdb"
+									"./config set phabricator.repository.default-local-path /mnt/xvdb",
+									"./config set phabricator.base-uri $(curl http://169.254.169.254/latest/meta-data/public-ipv4)"
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
@@ -211,14 +213,13 @@
 							"/etc/apache2/sites-available/phabricator.conf" : {
 								"content" : { "Fn::Join" : ["", [
 									"<VirtualHost *>\n",
-										"ServerName ", {"Fn::GetAtt": ["PhabricatorWeb", "PrivateIp"]}, "\n",
 										"DocumentRoot /usr/local/phabricator/webroot\n",
 										"RewriteEngine on\n",
 										"RewriteRule ^/rsrc/(.*)     -                       [L,QSA]\n",
 										"RewriteRule ^/favicon.ico   -                       [L,QSA]\n",
 										"RewriteRule ^(.*)$          /index.php?__path__=$1  [B,L,QSA]\n",
 									"</VirtualHost>\n",
-										"<Directory \"/usr/local/phabricator/webroot\">\n",
+									"<Directory \"/usr/local/phabricator/webroot\">\n",
 										"Require all granted\n",
 									"</Directory>"
 								]]},
@@ -261,7 +262,7 @@
 					"#!/bin/bash\n",
 					"apt-get -qq update\n",
 					"apt-get -qq -y install python-setuptools\n",
-					"apt-get -qq -y install git apache2 dpkg-dev\n",
+					"apt-get -qq -y install git mercurial subversion apache2 dpkg-dev\n",
 					"apt-get -qq -y install php5 php5-mysql php5-gd php5-dev php5-curl php-apc php5-cli php5-json\n",
 					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
 					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r PhabricatorWeb -c config"
