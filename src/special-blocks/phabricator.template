@@ -207,8 +207,7 @@
 								"content" : { "Fn::Join" : ["\n", [
 									"mkfs -t ext4 /dev/xvdb",
 									"sudo mkdir /mnt/xvdb",
-									"sudo mount -t ext4 /dev/xvdb /mnt/xvdb",
-									"chown www-data /mnt/xvdb/ -R"
+									"sudo mount -t ext4 /dev/xvdb /mnt/xvdb"
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
@@ -242,9 +241,20 @@
 									"a2enmod rewrite\n",
 									"a2dissite 000-default\n",
 									"a2ensite phabricator\n",
-									"service apache2 restart\n",
-									"useradd daemon-user\n",
-									"./bin/phd start\n"
+									"service apache2 restart"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/usr/local/phabricator/setup-phd.sh" : {
+								"content" : { "Fn::Join" : ["\n", [
+									"useradd daemon-user",
+									"mkdir /home/daemon-user",
+									"chown daemon-user /home/daemon-user",
+									"chown daemon-user /mnt/xvdb/ -R",
+									"chown daemon-user /var/tmp/phd/pid -R",
+									"sudo -iu daemon-user /usr/local/phabricator/bin/phd start"
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
@@ -269,16 +279,20 @@
 							}
 						},
 						"commands" : {
-							"0-dbupser" : {
-								"command" : "bash mount-disk.sh",
+							"0-mount-disk" : {
+								"command" : "./mount-disk.sh",
 								"cwd" : "/usr/local"
 							},
 							"1-misc-configs" : {
-								"command" : "bash configure.sh",
+								"command" : "./configure.sh",
 								"cwd" : "/usr/local/phabricator/bin"
 							},
 							"3-dbupsert" : {
-								"command" : "bash misc.sh",
+								"command" : "./misc.sh",
+								"cwd" : "/usr/local/phabricator"
+							},
+							"4-start-phd" : {
+								"command" : "./setup-phd.sh",
 								"cwd" : "/usr/local/phabricator"
 							}
 						}
