@@ -80,7 +80,9 @@ function Get-StackLinkParameters {
     $nonePriorityStacks = $cfnStacks | ? {
         !($PriorityStackNames.Contains($_.StackName))
     }
-    $cfnStacks = $priorityCfnStacks + $nonePriorityStacks
+    $cfnStacks = @()
+    $cfnStacks += $priorityCfnStacks
+    $cfnStacks += $nonePriorityStacks
     if ($cfnStacks.Count -eq 0) {
         Write-Host No stacks found.
     } else {
@@ -89,6 +91,13 @@ function Get-StackLinkParameters {
 
     Write-Host == Parameters ==
     foreach($cfnParameter in $cfnNewLaunchTarget.Parameters) {
+        # Only if the parameter doesn't exist yet
+        $matchedParams = $StackParameters | ? {
+            $_.Key -eq $cfnParameter.ParameterKey
+        }
+        if ($matchedParams.count -gt 0) {
+            continue
+        }
 
         $paramDerivative = Select-String "\[(.*)\]" -input $cfnParameter.Description -AllMatches | Foreach {$_.Matches.Groups[1].Value}
         # Only if there's param derivative directive
