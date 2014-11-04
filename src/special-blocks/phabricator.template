@@ -239,6 +239,7 @@
 									"./bin/storage upgrade -f\n",
 									"echo \"www-data ALL=(daemon-user) SETENV: NOPASSWD: /usr/lib/git-core/git-http-backend, /usr/bin/hg\" >> /etc/sudoers\n",
 									"a2enmod rewrite\n",
+									"a2enmod ssl\n",
 									"a2dissite 000-default\n",
 									"a2ensite phabricator\n",
 									"service apache2 restart"
