@@ -94,7 +94,7 @@
 			"Type": "String"
 		},
 		"VpcId": {
-			"Description" : "VPCid associated with the subnets. [vpc.resources.Vpc]",
+			"Description" : "VPCid associated with the subnets. [subnets.parameters.VpcId]",
 			"Type": "String"
 		}
 	},
