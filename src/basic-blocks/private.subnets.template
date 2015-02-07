@@ -156,6 +156,76 @@
 				"Tags" : []
 			}
 		},
+		"AclEntryInRdsMySql" : {
+			"Type" : "AWS::EC2::NetworkAclEntry",
+			"Properties" : {
+				"NetworkAclId" : { "Ref" : "Acl" },
+				"RuleNumber" : "1000",
+				"Protocol" : "6",
+				"RuleAction" : "allow",
+				"Egress" : "false",
+				"CidrBlock" : { "Fn::Join" : [ "", [
+					{ "Ref" : "VpcPrefix" }, ".0.0/16"
+				]]},
+				"PortRange" : { "From" : "1433", "To" : "1433" }
+			}
+		},
+		"AclEntryInRdsSqlServer" : {
+			"Type" : "AWS::EC2::NetworkAclEntry",
+			"Properties" : {
+				"NetworkAclId" : { "Ref" : "Acl" },
+				"RuleNumber" : "1001",
+				"Protocol" : "6",
+				"RuleAction" : "allow",
+				"Egress" : "false",
+				"CidrBlock" : { "Fn::Join" : [ "", [
+					{ "Ref" : "VpcPrefix" }, ".0.0/16"
+				]]},
+				"PortRange" : { "From" : "3306", "To" : "3306" }
+			}
+		},
+		"AclEntryInRdsPostgreSql" : {
+			"Type" : "AWS::EC2::NetworkAclEntry",
+			"Properties" : {
+				"NetworkAclId" : { "Ref" : "Acl" },
+				"RuleNumber" : "1002",
+				"Protocol" : "6",
+				"RuleAction" : "allow",
+				"Egress" : "false",
+				"CidrBlock" : { "Fn::Join" : [ "", [
+					{ "Ref" : "VpcPrefix" }, ".0.0/16"
+				]]},
+				"PortRange" : { "From" : "5432", "To" : "5433" }
+			}
+		},
+		"AclEntryInRedShift" : {
+			"Type" : "AWS::EC2::NetworkAclEntry",
+			"Properties" : {
+				"NetworkAclId" : { "Ref" : "Acl" },
+				"RuleNumber" : "1002",
+				"Protocol" : "6",
+				"RuleAction" : "allow",
+				"Egress" : "false",
+				"CidrBlock" : { "Fn::Join" : [ "", [
+					{ "Ref" : "VpcPrefix" }, ".0.0/16"
+				]]},
+				"PortRange" : { "From" : "5439", "To" : "5439" }
+			}
+		},
+		"AclEntryOutDataPort" : {
+			"Type" : "AWS::EC2::NetworkAclEntry",
+			"Properties" : {
+				"NetworkAclId" : { "Ref" : "Acl" },
+				"RuleNumber" : "1000",
+				"Protocol" : "6",
+				"RuleAction" : "allow",
+				"Egress" : "true",
+				"CidrBlock" : { "Fn::Join" : [ "", [
+					{ "Ref" : "VpcPrefix" }, ".0.0/16"
+				]]},
+				"PortRange" : { "From" : "32768", "To" : "65535" }
+			}
+		},
 
 		"RedShiftClusteredSubnetGroup" : {
 			"Type": "AWS::Redshift::ClusterSubnetGroup",

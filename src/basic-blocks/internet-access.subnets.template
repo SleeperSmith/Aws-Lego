@@ -207,37 +207,26 @@
 				"PortRange" : { "From" : "32768", "To" : "65535" }
 			}
 		},
+		"AclEntryOutAllToVpc" : {
+			"Type" : "AWS::EC2::NetworkAclEntry",
+			"Properties" : {
+				"NetworkAclId" : { "Ref" : "Acl" },
+				"RuleNumber" : "1002",
+				"Protocol" : "6",
+				"RuleAction" : "allow",
+				"Egress" : "true",
+				"CidrBlock" : { "Fn::Join" : [ "", [
+					{ "Ref" : "VpcPrefix" }, ".0.0/16"
+				]]},
+				"PortRange" : { "From" : "0", "To" : "32768" }
+			}
+		},
 
 		"RedShiftClusteredSubnetGroup" : {
 			"Type": "AWS::Redshift::ClusterSubnetGroup",
 			"Properties": {
 				"Description": "Redshift Cluster Subnet Group for Internet Accessable Subnets",
 				"SubnetIds": [
-					{"Ref": "Subnet1"},
-					{"Ref": "Subnet2"},
-					{"Fn::If":["IsThreeAz",{"Ref": "Subnet3"},{"Ref" : "AWS::NoValue"}]}
-				]
-			}
-		},
-
-		"RdsSubnetGroup": {
-			"Type" : "AWS::RDS::DBSubnetGroup",
-			"Properties" : {
-				"DBSubnetGroupDescription" : "Rds Subnet Group for Internet Accessable Subnets",
-				"SubnetIds" : [
-					{"Ref": "Subnet1"},
-					{"Ref": "Subnet2"},
-					{"Fn::If":["IsThreeAz",{"Ref": "Subnet3"},{"Ref" : "AWS::NoValue"}]}
-				],
-				"Tags" : []
-			}
-		},
-
-		"ElasticCacheSubnetGroup" : {
-			"Type" : "AWS::ElastiCache::SubnetGroup",
-			"Properties" : {
-				"Description" : "Elastic Cache Subnet Group for Internet Accessable Subnet",
-				"SubnetIds" : [
 					{"Ref": "Subnet1"},
 					{"Ref": "Subnet2"},
 					{"Fn::If":["IsThreeAz",{"Ref": "Subnet3"},{"Ref" : "AWS::NoValue"}]}
