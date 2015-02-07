@@ -1,0 +1,223 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "Base for oban datastore.",
+	"Parameters": {
+		"RawLogBucketName" : {
+			"Description" : "Bucket name for raw logs from elastic load balancer and cloud trail.",
+			"Type" : "String"
+		},
+		"AccessLogBucketName" : {
+			"Description" : "Bucket name for raw logs from s3 bucket and cloud front.",
+			"Type" : "String"
+		}
+	},
+	"Resources" : {
+		"AccessLog" : {
+			"Type" : "AWS::S3::Bucket",
+			"Properties" : {
+				"AccessControl" : "LogDeliveryWrite",
+				"BucketName" : {"Ref": "AccessLogBucketName"},
+				"VersioningConfiguration" : {
+					"Status": "Enabled"
+				},
+				"NotificationConfiguration" : {
+					"TopicConfigurations" : [
+						{
+                            "Topic": {"Ref":"S3AccessLogBucketNotification"},
+                            "Event": "s3:ObjectCreated:*"
+                        }
+					]
+				}
+			},
+			"DeletionPolicy" : "Retain"
+		},
+		"AccessLogBucketPolicy" : {
+			"Type" : "AWS::S3::BucketPolicy",
+			"Properties" : {
+				"Bucket" : {"Ref" : "AccessLog"},
+				"PolicyDocument": {
+					"Statement":[{
+						"Action":["s3:DeleteObject","s3:DeleteObjectVersion"],
+						"Effect":"Deny",
+						"Resource": { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "AccessLog" } , "/*" ]]},
+						"Principal":"*"
+					}]
+				}
+			}
+  		},
+
+		"Raw" : {
+			"Type" : "AWS::S3::Bucket",
+			"Properties" : {
+				"AccessControl" : "Private",
+				"BucketName" : {"Ref": "RawLogBucketName"},
+				"LoggingConfiguration": {
+					"DestinationBucketName" : { "Ref": "AccessLog"},
+					"LogFilePrefix" : {"Fn::Join": ["",[
+						"s3-access/", {"Ref": "RawLogBucketName"}, "/"
+					]]}
+				},
+				"VersioningConfiguration" : {
+					"Status": "Enabled"
+				},
+				"NotificationConfiguration" : {
+					"TopicConfigurations" : [
+						{
+                            "Topic": {"Ref":"RawBucketNotification"},
+                            "Event": "s3:ObjectCreated:*"
+                        }
+					]
+				}
+			},
+			"DeletionPolicy" : "Retain"
+		},
+		"RawBucketPolicy" : {
+			"Type" : "AWS::S3::BucketPolicy",
+			"Properties" : {
+				"Bucket" : {"Ref" : "Raw"},
+				"PolicyDocument": {
+					"Statement":[
+					{
+						"Action":["s3:DeleteObject","s3:DeleteObjectVersion"],
+						"Effect":"Deny",
+						"Resource": { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "Raw" } , "/*" ]]},
+						"Principal":"*"
+					},
+					{
+						"Action":["s3:GetBucketAcl"],
+						"Effect":"Allow",
+						"Resource": { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "Raw" } ]]},
+						"Principal":{
+							"AWS": [
+								"arn:aws:iam::216624486486:root",
+								"arn:aws:iam::903692715234:root",
+								"arn:aws:iam::284668455005:root",
+								"arn:aws:iam::035351147821:root",
+								"arn:aws:iam::859597730677:root",
+								"arn:aws:iam::814480443879:root",
+								"arn:aws:iam::086441151436:root",
+								"arn:aws:iam::388731089494:root",
+								"arn:aws:iam::113285607260:root"
+							]
+						}
+					},
+					{
+						"Action":["s3:PutObject"],
+						"Effect":"Allow",
+						"Resource": { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "Raw" } , "/AWSLogs/*" ]]},
+						"Principal":{
+							"AWS": [
+								"arn:aws:iam::127311923021:root",
+								"arn:aws:iam::027434742980:root",
+								"arn:aws:iam::797873946194:root",
+								"arn:aws:iam::156460612806:root",
+								"arn:aws:iam::054676820928:root",
+								"arn:aws:iam::582318560864:root",
+								"arn:aws:iam::114774131450:root",
+								"arn:aws:iam::783225319266:root",
+								"arn:aws:iam::507241528517:root",
+
+								"arn:aws:iam::216624486486:root",
+								"arn:aws:iam::903692715234:root",
+								"arn:aws:iam::284668455005:root",
+								"arn:aws:iam::035351147821:root",
+								"arn:aws:iam::859597730677:root",
+								"arn:aws:iam::814480443879:root",
+								"arn:aws:iam::086441151436:root",
+								"arn:aws:iam::388731089494:root",
+								"arn:aws:iam::113285607260:root"
+							]
+						}
+					}]
+				}
+			}
+  		},
+
+		"RawBucketNotification" : {
+			"Type" : "AWS::SNS::Topic",
+			"Properties" : {
+				"DisplayName" : "Raw Bucket Event Notification",
+				"TopicName" : { "Fn::Join": ["", [
+					"s3-event-", {"Ref": "RawLogBucketName"}
+				]]}
+			}
+		},
+		"RawBucketSnsPolicy" : {
+			"Type" : "AWS::SNS::TopicPolicy",
+			"Properties" : {
+				"PolicyDocument": {
+					"Version": "2008-10-17",
+					"Statement": [
+					{
+						"Sid": "raw-log-file-created-sns",
+						"Effect": "Allow",
+						"Principal": {
+							"AWS" : "*"  
+						},
+						"Action": [
+							"SNS:Publish"
+						],
+						"Resource": [
+							{"Ref": "RawBucketNotification" }
+						],
+						"Condition": {
+							"ArnLike": {          
+								"aws:SourceArn": { "Fn::Join": ["", [
+									"arn:aws:s3:*:*:", {"Ref": "RawLogBucketName"}
+								]]}
+							}
+						}
+					}]
+				},
+				"Topics": [
+					{"Ref": "RawBucketNotification" }
+				]
+			}
+		},
+
+		"AccessLogBucketNotification" : {
+			"Type" : "AWS::SNS::Topic",
+			"Properties" : {
+				"DisplayName" : "S3 Access Log Bucket Event Notification",
+				"TopicName" : { "Fn::Join": ["", [
+					"s3-event-", {"Ref": "AccessLog"}
+				]]}
+			}
+		},
+		"AccessLogBucketSnsPolicy" : {
+			"Type" : "AWS::SNS::TopicPolicy",
+			"Properties" :
+			{
+				"PolicyDocument": {
+					"Version": "2008-10-17",
+					"Statement": [
+					{
+						"Sid": "s3-access-file-created-sns",
+						"Effect": "Allow",
+						"Principal": {
+							"AWS" : "*"  
+						},
+						"Action": [
+							"SNS:Publish"
+						],
+						"Resource": [
+							{"Ref": "RawBucketNotification" }
+						],
+						"Condition": {
+							"ArnLike": {          
+								"aws:SourceArn": { "Fn::Join": ["", [
+									"arn:aws:s3:*:*:", {"Ref": "AccessLogBucketName"}
+								]]}
+							}
+						}
+					}]
+				},
+				"Topics": [
+					{"Ref": "RawBucketNotification" }
+				]
+			}
+		}
+	},
+	"Outputs" : {
+	}
+}

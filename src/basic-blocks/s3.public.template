@@ -1,0 +1,31 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "Base for oban datastore.",
+	"Parameters": {
+		"BucketName" : {
+			"Description" : "Creates a bucket with public read access and set access logging to the specified bucket.",
+			"Type" : "String"
+		},
+		"AccessLogBucketName" : {
+			"Description" : "Bucket to store access log for S3. [s3-aws-logs.parameters.AccessLogBucketName]",
+			"Type" : "String"
+		}
+	},
+	"Resources" : {
+		"Bucket" : {
+			"Type" : "AWS::S3::Bucket",
+			"Properties" : {
+				"AccessControl" : "PublicRead",
+				"BucketName" : {"Ref": "BucketName"},
+				"LoggingConfiguration": {
+					"DestinationBucketName" : { "Ref": "AccessLogBucketName"},
+					"LogFilePrefix" : {"Fn::Join": ["",[
+						"s3-access/", {"Ref": "BucketName"}, "/"
+					]]}
+				}
+			}
+		}
+	},
+	"Outputs" : {
+	}
+}
