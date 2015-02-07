@@ -47,6 +47,16 @@
 			"Description" : "Comma-delimited list of three IP blocks",
 			"Type" : "CommaDelimitedList",
 			"Default" : ""
+		},
+
+		"EnableExtraDataPort" : {
+			"Description" : "If set to true, 1024~32768 will be open for 0.0.0.0/0. Default is false.",
+			"Type" : "String",
+			"AllowedValues" : [
+				"true", "false"
+			],
+			"Default" : "false",
+			"ConstraintDescription" : "Must be 'true' or 'false'."
 		}
 	},
 
@@ -54,7 +64,8 @@
 		"IsThreeAz" : { "Fn::Equals" : [{"Ref" : "AzCount"}, "3"]},
 		"IsAzSupplied" : { "Fn::Not" : [{ "Fn::Equals" : [
 			{"Fn::Select": ["0", {"Ref" : "AvailableAzs"}]}, ""
-		]}]}
+		]}]},
+		"IsExtraDataPortOpen" : { "Fn::Equals" : [{"Ref" : "EnableExtraDataPort"}, "true"]}
 	},
 
 	"Resources" : {
@@ -187,7 +198,7 @@
 				"RuleAction" : "allow",
 				"Egress" : "true",
 				"CidrBlock" : "0.0.0.0/0",
-				"PortRange" : { "From" : "1024", "To" : "65535" }
+				"PortRange" : { "From" : "32768", "To" : "65535" }
 			}
 		},
 
@@ -227,7 +238,7 @@
 				"PortRange" : { "From" : "32768", "To" : "65535" }
 			}
 		},
-		"AclEntryOutElbDataPort" : {
+		"AclEntryOutAllToVpc" : {
 			"Type" : "AWS::EC2::NetworkAclEntry",
 			"Properties" : {
 				"NetworkAclId" : { "Ref" : "Acl" },
@@ -238,44 +249,20 @@
 				"CidrBlock" : { "Fn::Join" : [ "", [
 					{ "Ref" : "VpcPrefix" }, ".0.0/16"
 				]]},
+				"PortRange" : { "From" : "0", "To" : "32768" }
+			}
+		},
+		"AclEntryOutElbDataPort" : {
+			"Type" : "AWS::EC2::NetworkAclEntry",
+			"Condition" : "IsExtraDataPortOpen",
+			"Properties" : {
+				"NetworkAclId" : { "Ref" : "Acl" },
+				"RuleNumber" : "1004",
+				"Protocol" : "6",
+				"RuleAction" : "allow",
+				"Egress" : "false",
+				"CidrBlock" : "0.0.0.0/0",
 				"PortRange" : { "From" : "1024", "To" : "32768" }
-			}
-		},
-
-		"RedShiftClusteredSubnetGroup" : {
-			"Type": "AWS::Redshift::ClusterSubnetGroup",
-			"Properties": {
-				"Description": "Redshift Cluster Subnet Group for Internet Accessable Subnets",
-				"SubnetIds": [
-					{"Ref": "Subnet1"},
-					{"Ref": "Subnet2"},
-					{"Fn::If":["IsThreeAz",{"Ref": "Subnet3"},{"Ref" : "AWS::NoValue"}]}
-				]
-			}
-		},
-
-		"RdsSubnetGroup": {
-			"Type" : "AWS::RDS::DBSubnetGroup",
-			"Properties" : {
-				"DBSubnetGroupDescription" : "Rds Subnet Group for Internet Accessable Subnets",
-				"SubnetIds" : [
-					{"Ref": "Subnet1"},
-					{"Ref": "Subnet2"},
-					{"Fn::If":["IsThreeAz",{"Ref": "Subnet3"},{"Ref" : "AWS::NoValue"}]}
-				],
-				"Tags" : []
-			}
-		},
-
-		"ElasticCacheSubnetGroup" : {
-			"Type" : "AWS::ElastiCache::SubnetGroup",
-			"Properties" : {
-				"Description" : "Elastic Cache Subnet Group for Internet Accessable Subnet",
-				"SubnetIds" : [
-					{"Ref": "Subnet1"},
-					{"Ref": "Subnet2"},
-					{"Fn::If":["IsThreeAz",{"Ref": "Subnet3"},{"Ref" : "AWS::NoValue"}]}
-				]
 			}
 		}
 	}
