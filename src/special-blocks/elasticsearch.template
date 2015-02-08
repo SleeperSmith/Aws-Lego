@@ -29,8 +29,9 @@
 		"MasterNodeInstanceType" : {
 			"Description" : "WebServer EC2 instance type",
 			"Type" : "String",
-			"Default" : "t2.small",
+			"Default" : "t2.micro",
 			"AllowedValues": [
+				"t2.micro",
 				"t2.small",
 				"t2.medium",
 				"m3.medium",
@@ -55,49 +56,42 @@
 
 		"EsConfShard": {
 			"Description": "Number of shards per index.",
-			"Default": "6",
+			"Default": "10",
 			"Type": "Number"
 		},
 		"EsConfReplica": {
 			"Description": "Number of replicas.",
-			"Default": "1",
+			"Default": "0",
 			"Type": "Number"
 		},
 		"EsConfClusterName": {
 			"Description": "Name of cluster. This is used for discovery.",
-			"Type": "String"
+			"Type": "String",
+			"Default": "EsCluster"
 		},
 
 		"VpcId": {
-			"Description" : "VPCid associated with the subnets. [subnets.input.VpcId]",
+			"Description" : "VPCid associated with the subnets. [subnets.parameters.VpcId]",
 			"Type": "String"
 		},
 		"Subnet1Id": {
-			"Description" : "Subnet to run HA web cluster on. [subnets.resources.Subnet1]",
+			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet1]",
 			"Type": "String"
 		},
 		"Subnet2Id": {
-			"Description" : "Subnet to run HA web cluster on. [subnets.resources.Subnet2]",
+			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet2]",
 			"Type": "String"
 		},
 		"Subnet3Id": {
-			"Description" : "Subnet to run HA web cluster on. [subnets.resources.Subnet3]",
+			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet3]",
 			"Type": "String",
 			"Default": ""
-		},
-		"LogBucket": {
-			"Description" : "Image id of the frontend",
-			"Type" : "String"
-		},
-
-		"TemplateEnv": {
-			"Description" : "Environment name. Accepted values are Dev / UAT / Production",
-			"Type" : "String"
 		}
 	},
 
 	"Mappings" : {
 		"InstanceVariables" : {
+			"t2.micro": { "ram" : "450" },
 			"t2.small": { "ram" : "950" },
 			"t2.medium": { "ram" : "1950" },
 			"m3.medium": { "ram" : "1800", "spotprice": "0.02"},
@@ -229,7 +223,7 @@
 				"InstanceType" : { "Ref" : "DataNodeInstanceType" },
 				"ImageId" : { "Ref" : "EsClusterAmi" },
 				"KeyName" : { "Ref" : "KeyPairName" },
-				"AssociatePublicIpAddress": "false",
+				"AssociatePublicIpAddress": "true",
 				"SecurityGroups": [
 					{ "Ref" : "EsClusterNodeSg" }
 				],
@@ -262,9 +256,9 @@
 				],
 				"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
 				"LaunchConfigurationName" : { "Ref" : "EsDataNodeLc" },
-				"MinSize" : "2",
+				"MinSize" : "1",
 				"MaxSize" : "20",
-				"DesiredCapacity" : "2",
+				"DesiredCapacity" : "1",
 				"Tags" : [{"Key": "Name", "Value" : "Elasticsearch Cluster Data Node", "PropagateAtLaunch" : "True"}]
 			}
 		},
@@ -320,7 +314,7 @@
 				"InstanceType" : { "Ref" : "DataNodeInstanceType" },
 				"ImageId" : { "Ref" : "EsClusterAmi" },
 				"KeyName" : { "Ref" : "KeyPairName" },
-				"AssociatePublicIpAddress": "false",
+				"AssociatePublicIpAddress": "true",
 				"SecurityGroups": [
 					{ "Ref" : "EsClusterNodeSg" }
 				],
@@ -355,8 +349,8 @@
 			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
 			"LaunchConfigurationName" : { "Ref" : "EsSpotDataNodeLc" },
 			"MinSize" : "0",
-			"MaxSize" : "1",
-			"DesiredCapacity" : "1",
+			"MaxSize" : "0",
+			"DesiredCapacity" : "0",
 			"Tags" : [{"Key": "Name", "Value" : "Elasticsearch Cluster Spot Data Node", "PropagateAtLaunch" : "True"}]
 		  }
 		},
@@ -411,7 +405,7 @@
 				"InstanceType" : { "Ref" : "MasterNodeInstanceType" },
 				"ImageId" : { "Ref" : "EsClusterAmi" },
 				"KeyName" : { "Ref" : "KeyPairName" },
-				"AssociatePublicIpAddress": "false",
+				"AssociatePublicIpAddress": "true",
 				"SecurityGroups": [
 					{ "Ref" : "EsClusterNodeSg" },
 					{ "Ref" : "EsClusterGatewayNodeSg" }
@@ -441,9 +435,9 @@
 			],
 			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
 			"LaunchConfigurationName" : { "Ref" : "EsMasterNodeLc" },
-			"MinSize" : "2",
+			"MinSize" : "1",
 			"MaxSize" : "4",
-			"DesiredCapacity" : "2",
+			"DesiredCapacity" : "1",
 			"LoadBalancerNames" : [ { "Ref" : "EsMasterLoadBalancer" } ],
 			"Tags" : [{"Key": "Name", "Value" : "Elasticsearch Cluster Master Node", "PropagateAtLaunch" : "True"}]
 		  }
@@ -471,11 +465,6 @@
 					"UnhealthyThreshold" : "5",
 					"Interval" : "30",
 					"Timeout" : "5"
-				},
-				"AccessLoggingPolicy" : {
-					"EmitInterval": "5",
-					"Enabled": "true",
-					"S3BucketName": {"Ref": "LogBucket"}
 				},
 				"SecurityGroups": [{ "Ref": "EsElbSg" }],
 				"Scheme": "internal"
@@ -596,7 +585,7 @@
 	},
 
 	"Outputs" : {
-		"EsClusterMasters" : {
+		"EsElb" : {
 			"Value" : { "Fn::GetAtt" : ["EsMasterLoadBalancer", "DNSName"] },
 			"Description" : "Private A record for ES Master Node ELB"
 		}
