@@ -1,0 +1,475 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+
+	"Description": "A MongoDB Replica Set with Data and Arbiter nodes all on Auto Scaling Group.",
+
+	"Parameters": {
+		"KeyPairName": {
+			"Description": "Name of an existing EC2 KeyPair to enable SSH access to the instances",
+			"Type": "String"
+		},
+
+		"DataNodeInstanceType" : {
+			"Description" : "Instance type for the active data nodes.",
+			"Type" : "String",
+			"Default" : "t2.micro",
+			"AllowedValues": [
+				"t2.micro",
+				"t2.small",
+				"t2.medium",
+				"m3.medium",
+				"m3.large",
+				"m3.xlarge",
+				"m3.2xlarge",
+				"r3.large",
+				"r3.xlarge",
+				"r3.2xlarge",
+				"r3.4xlarge",
+				"r3.8xlarge"
+			],
+			"ConstraintDescription" : "must be a valid EC2 instance type."
+		},
+		"DataNodeCount" : {
+			"Description" : "Instance count for the active data nodes.",
+			"Type" : "Number",
+			"Default" : "1",
+			"AllowedValues": [
+				"1",
+				"2",
+				"4",
+				"6"
+			],
+			"ConstraintDescription" : "Can only be 2, 4, 6."
+		},
+		"ArbiterNodeInstanceType" : {
+			"Description" : "WebServer EC2 instance type",
+			"Type" : "String",
+			"Default" : "t2.micro",
+			"AllowedValues": [
+				"t2.micro",
+				"t2.small",
+				"t2.medium",
+				"m3.medium",
+				"m3.large",
+				"m3.xlarge",
+				"m3.2xlarge"
+			],
+			"ConstraintDescription" : "must be a valid EC2 instance type."
+		},
+		"ArbiterNodeCount" : {
+			"Description" : "Instance count for the passive arbiter nodes.",
+			"Type" : "Number",
+			"Default" : "0",
+			"AllowedValues": [
+				"0",
+				"1",
+				"3",
+				"5"
+			],
+			"ConstraintDescription" : "Can only be 1, 3, 5."
+		},
+
+		"ClusterAmi": {
+			"Description": "AMI to use. Note Ubuntu is prefered.",
+			"Default": "ami-fddabdc7",
+			"Type": "String"
+		},
+		"DataDiskSize": {
+			"Description": "Size of the SSD for the elasticsearch to write to.",
+			"Default": "150",
+			"Type": "Number",
+			"MinValue": "50",
+			"MaxValue": "1000"
+		},
+
+		"ClusterName": {
+			"Description": "Name of cluster. This is used for naming replica set.",
+			"Type": "String",
+			"Default": "MongoCluster"
+		},
+
+		"VpcId": {
+			"Description" : "VPCid associated with the subnets. [nat-enabled.parameters.VpcId]",
+			"Type": "String"
+		},
+		"Subnet1Id": {
+			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet1]",
+			"Type": "String"
+		},
+		"Subnet2Id": {
+			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet2]",
+			"Type": "String"
+		},
+		"Subnet3Id": {
+			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet3]",
+			"Type": "String",
+			"Default": ""
+		}
+	},
+
+	"Mappings" : {
+		"InstanceVariables" : {
+			"t2.micro": { "ram" : "450" },
+			"t2.small": { "ram" : "950" },
+			"t2.medium": { "ram" : "1950" },
+			"m3.medium": { "ram" : "1800", "spotprice": "0.02"},
+			"m3.large": { "ram" : "3600", "spotprice": "0.03" },
+			"m3.xlarge": { "ram" : "7000", "spotprice": "0.05" },
+			"m3.2xlarge": { "ram" : "14500", "spotprice": "0.09" },
+			"r3.large": { "ram" : "7500", "spotprice": "0.03" },
+			"r3.xlarge": { "ram" : "15000", "spotprice": "0.05" },
+			"r3.2xlarge": { "ram" : "30000", "spotprice": "0.09" },
+			"r3.4xlarge": { "ram" : "60000", "spotprice": "0.17" },
+			"r3.8xlarge": { "ram" : "12000", "spotprice": "0.4" }
+		}
+	},
+
+	"Resources" : {
+		"BaseLc" : {
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Metadata" : {
+				"Comment" : "This is a base launch configuration shared across both the data and arbiter nodes.",
+				"AWS::CloudFormation::Init" : {
+					"configSets": {
+						"config": [
+							"install-mongodb"
+						]
+					},
+					"install-mongodb" : {
+						"files" : {
+							"/home/usr/local/install-mongodb.sh" : {
+								"content" : { "Fn::Join" : ["", [
+									"#!/bin/bash\n",
+									"apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 7F0CEB10\n",
+									"echo 'deb http://downloads-distro.mongodb.org/repo/ubuntu-upstart dist 10gen'",
+									" | tee /etc/apt/sources.list.d/mongodb.list\n",
+									"apt-get update\n",
+									"apt-get install -y mongodb-org\n"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							}
+						},
+						"commands" : {
+							"1-install": {
+								"command" : "./install-mongodb.sh",
+								"cwd" : "/home/usr/local/",
+								"ignoreErrors" : "false"
+							}
+						}
+					}
+				}
+			},
+			"Properties": {
+				"InstanceType" : { "Ref" : "DataNodeInstanceType" },
+				"ImageId" : { "Ref" : "ClusterAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" }
+			}
+		},
+
+		"DataNodeLc" : {
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Metadata" : {
+				"AWS::CloudFormation::Init" : {
+					"configSets": {
+						"config": [
+							"mongodb-config"
+						]
+					},
+					"mongodb-config" : {
+						"files" : {
+							"/home/usr/local/mount-disk.sh" : {
+								"content" : { "Fn::Join" : ["", [
+									"#!/bin/bash\n",
+									"mkfs -t ext4 /dev/$1\n",
+									"mkdir /mnt/$1\n",
+									"mount -t ext4 /dev/$1 /mnt/$1\n",
+									"mkdir /mnt/$1/mongodb/\n",
+									"mkdir /mnt/$1/mongolog/\n",
+									"chown mongodb:mongodb /mnt/$1 -R\n"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/etc/mongod.conf" : {
+								"content" : { "Fn::Join" : ["", [
+									"systemLog:\n",
+									"  logAppend: true\n",
+									"  path: '/mnt/xvdb/mongolog/mongod.log'\n",
+									"  destination: file\n",
+									"storage:\n",
+									"  dbPath: '/mnt/xvdb/mongodb'\n",
+									"replication:\n",
+									"  replSetName: ", {"Ref": "ClusterName"}, "\n",
+									"net:\n"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/home/usr/local/append-privateip.sh" : {
+								"content" : { "Fn::Join" : ["", [
+									"#!/bin/bash\n",
+									"echo \"  bindIp: $(curl http://169.254.169.254/latest/meta-data/local-ipv4)\n\" >> /etc/mongod.conf\n"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							}
+						},
+						"commands" : {
+							"1-mount-gp-ssd": {
+								"command" : "./mount-disk.sh xvdb",
+								"cwd" : "/home/usr/local/",
+								"ignoreErrors" : "false"
+							},
+							"2-append-ip": {
+								"command" : "./append-privateip.sh",
+								"cwd" : "/home/usr/local/",
+								"ignoreErrors" : "false"
+							},
+							"2-restart-mongod": {
+								"command" : "service mongod restart",
+								"cwd" : "/home/usr/local/",
+								"ignoreErrors" : "false"
+							}
+						}
+					}
+				}
+			},
+			"Properties": {
+				"InstanceType" : { "Ref" : "DataNodeInstanceType" },
+				"ImageId" : { "Ref" : "ClusterAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" },
+				"AssociatePublicIpAddress": "true",
+				"SecurityGroups": [
+					{ "Ref" : "ClusterNodeSg" }
+				],
+				"IamInstanceProfile": { "Ref" : "DataNodeInstanceProfile" },
+				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+					"#!/bin/bash\n",
+					"apt-get update\n",
+					"apt-get -y install python-setuptools default-jre\n",
+					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r BaseLc -c config\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r DataNodeLc -c config"
+				]]}},
+				"BlockDeviceMappings" : [
+					{
+						"DeviceName" : "/dev/sda1",
+						"Ebs" : { "VolumeSize" : "20", "VolumeType" : "gp2" }
+					},
+					{
+						"DeviceName" : "/dev/xvdb",
+						"Ebs" : { "VolumeSize" : {"Ref": "DataDiskSize"}, "VolumeType" : "gp2" }
+					}
+				]
+			}
+		},
+		"DataNodeAsg" : {
+			"Type" : "AWS::AutoScaling::AutoScalingGroup",
+			"Properties" : {
+				"VPCZoneIdentifier": [
+					{ "Ref" : "Subnet1Id" }
+				],
+				"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
+				"LaunchConfigurationName" : { "Ref" : "DataNodeLc" },
+				"MinSize" : {"Ref":"DataNodeCount"},
+				"MaxSize" : {"Ref":"DataNodeCount"},
+				"DesiredCapacity" : {"Ref":"DataNodeCount"},
+				"Tags" : [{"Key": "Name", "Value" : "MongoDB Cluster Data Node", "PropagateAtLaunch" : "True"}]
+			}
+		},
+		"ArbiterNodeLc" : {
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Metadata" : {
+				"AWS::CloudFormation::Init" : {
+					"configSets": {
+						"config": [
+							"mongodb-config"
+						]
+					},
+					"mongodb-config" : {
+						"files" : {
+							"/home/usr/local/mount-disk.sh" : {
+								"content" : { "Fn::Join" : ["", [
+									"#!/bin/bash\n",
+									"mkfs -t ext4 /dev/$1\n",
+									"mkdir /mnt/$1\n",
+									"mount -t ext4 /dev/$1 /mnt/$1\n",
+									"mkdir /mnt/$1/mongodb/\n",
+									"mkdir /mnt/$1/mongolog/\n",
+									"chown mongodb:mongodb /mnt/$1 -R\n"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/etc/mongod.conf" : {
+								"content" : { "Fn::Join" : ["", [
+									"systemLog:\n",
+									"  logAppend: true\n",
+									"  path: '/mnt/xvdb/mongolog/mongod.log'\n",
+									"  destination: file\n",
+									"storage:\n",
+									"  dbPath: '/mnt/xvdb/mongodb'\n",
+									"replication:\n",
+									"  replSetName: ", {"Ref": "ClusterName"}, "\n",
+									"net:\n"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/home/usr/local/append-privateip.sh" : {
+								"content" : { "Fn::Join" : ["", [
+									"#!/bin/bash\n",
+									"echo \"  bindIp: $(curl http://169.254.169.254/latest/meta-data/local-ipv4)\n\" >> /etc/mongod.conf\n"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							}
+						},
+						"commands" : {
+							"1-mount-gp-ssd": {
+								"command" : "./mount-disk.sh xvdb",
+								"cwd" : "/home/usr/local/",
+								"ignoreErrors" : "false"
+							},
+							"2-append-ip": {
+								"command" : "./append-privateip.sh",
+								"cwd" : "/home/usr/local/",
+								"ignoreErrors" : "false"
+							},
+							"2-restart-mongod": {
+								"command" : "service mongod restart",
+								"cwd" : "/home/usr/local/",
+								"ignoreErrors" : "false"
+							}
+						}
+					}
+				}
+			},
+			"Properties": {
+				"InstanceType" : { "Ref" : "DataNodeInstanceType" },
+				"ImageId" : { "Ref" : "ClusterAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" },
+				"AssociatePublicIpAddress": "true",
+				"SecurityGroups": [
+					{ "Ref" : "ClusterNodeSg" }
+				],
+				"IamInstanceProfile": { "Ref" : "DataNodeInstanceProfile" },
+				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+					"#!/bin/bash\n",
+					"apt-get update\n",
+					"apt-get -y install python-setuptools default-jre\n",
+					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r BaseLc -c config\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r ArbiterNodeLc -c config\n"
+				]]}},
+				"BlockDeviceMappings" : [
+					{
+						"DeviceName" : "/dev/sda1",
+						"Ebs" : { "VolumeSize" : "20", "VolumeType" : "gp2" }
+					},
+					{
+						"DeviceName" : "/dev/xvdb",
+						"Ebs" : { "VolumeSize" : "5", "VolumeType" : "standard" }
+					}
+				]
+			}
+		},
+		"ArbiterNodeAsg" : {
+		  "Type" : "AWS::AutoScaling::AutoScalingGroup",
+		  "Properties" : {
+		    "VPCZoneIdentifier": [
+				{ "Ref" : "Subnet1Id" }
+			],
+			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
+			"LaunchConfigurationName" : { "Ref" : "ArbiterNodeLc" },
+			"MinSize" : {"Ref":"ArbiterNodeCount"},
+			"MaxSize" : {"Ref":"ArbiterNodeCount"},
+			"DesiredCapacity" : {"Ref":"ArbiterNodeCount"},
+			"Tags" : [{"Key": "Name", "Value" : "MongoDB Cluster Arbiter Node", "PropagateAtLaunch" : "True"}]
+		  }
+		},
+
+		"DataNodeInstanceProfile": {
+			"Type": "AWS::IAM::InstanceProfile",
+			"Properties": {
+				"Path": "/elasticsearch/data/",
+				"Roles": [{ "Ref": "DataNodeRole" }]
+			}
+		},
+		"DataNodeRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": [ "ec2.amazonaws.com" ]
+							},
+							"Action": [ "sts:AssumeRole" ]
+						}
+					]
+				},
+				"Path": "/elasticsearch/data/",
+				"Policies": [{
+					"PolicyName": "root",
+					"PolicyDocument": {
+						"Version" : "2012-10-17",
+						"Statement": [{
+							"Effect": "Allow",
+							"Action": "EC2:Describe*",
+							"Resource": "*"
+						}]
+					}
+				}]
+			}
+		},
+
+		"ClusterNodeSg" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" : {
+				"GroupDescription" : "Security group for elasticsearch cluster nodes to cluster.",
+				"SecurityGroupEgress" : [
+					{ "IpProtocol" : "6" , "CidrIp": "0.0.0.0/0", "FromPort" : "0", "ToPort" : "65535"  }
+				],
+				"SecurityGroupIngress" : [
+					{ "IpProtocol" : "6" , "SourceSecurityGroupId": { "Ref" : "MongoDbConsumerSg" }, "FromPort" : "0", "ToPort" : "65535"  }
+				],
+				"VpcId" : { "Ref" : "VpcId"},
+				"Tags": [{"Key": "Name", "Value" : "Es Cluster Data Nodes"}]
+			}
+		},
+		"ClusterNodeSgSelfIngress" : {
+			"Type" : "AWS::EC2::SecurityGroupIngress",
+			"Properties" : {
+				"IpProtocol" : "tcp",
+				"FromPort" : "27017",
+				"ToPort" : "27017",
+				"GroupId" : { "Ref" : "ClusterNodeSg" },
+				"SourceSecurityGroupId" : { "Ref" : "ClusterNodeSg" }
+			}
+		},
+
+		"MongoDbConsumerSg" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" : {
+				"GroupDescription" : "Gateway to master nodes of the Elasticsearch Cluster",
+				"VpcId" : { "Ref" : "VpcId"},
+				"Tags": [{"Key": "Name", "Value" : "Es Cluster Load Balancer"}]
+			}
+		}
+
+	},
+
+	"Outputs" : {
+	}
+}
