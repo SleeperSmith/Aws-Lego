@@ -50,7 +50,11 @@
 			"Default" : ""
 		},
 		"DbSubnetGroup" : {
-			"Description" : "Subnet Group for hosting the MySql server. [subnets.resources.RdsSubnetGroup]",
+			"Description" : "Subnet Group for hosting the MySql server. [private.resources.RdsSubnetGroup]",
+			"Type" : "String"
+		},
+		"Hostname" : {
+			"Description" : "Hostname to access phabricator.",
 			"Type" : "String"
 		},
 
@@ -90,7 +94,7 @@
 			"Type": "String"
 		},
 		"Subnet1Id": {
-			"Description" : "Subnet to run HA web cluster on. [subnets.resources.Subnet1]",
+			"Description" : "Subnet to run HA web cluster on. [webserver.resources.Subnet1]",
 			"Type": "String"
 		},
 		"VpcId": {
@@ -125,7 +129,8 @@
 				"DBSnapshotIdentifier" : {"Fn::If": [
 					"HasDbSnapshot", {"Ref": "DbSnapshot"}, {"Ref" : "AWS::NoValue"}
 				]},
-				"DBSubnetGroupName" : {"Ref":"DbSubnetGroup"}
+				"DBSubnetGroupName" : {"Ref":"DbSubnetGroup"},
+				"Tags" : [{"Key": "Name", "Value" : "Phabricator Database"}]
 			},
 			"DeletionPolicy" : "Snapshot"
 		}, 
@@ -215,9 +220,6 @@
 							},
 							"/usr/local/phabricator/bin/configure.sh" : {
 								"content" : { "Fn::Join" : ["", [
-									"./config set mysql.host ", {"Fn::GetAtt" : [ "Database", "Endpoint.Address"]},"\n",
-									"./config set mysql.user ", {"Ref":"DbUsername"}, "\n",
-									"./config set mysql.pass ", {"Ref":"DbPassword"}, "\n",
 									"./config set phd.user daemon-user\n",
 									"./config set phabricator.timezone ", {"Ref": "PhabTimezone"}, "\n",
 									"./config set storage.upload-size-limit 5M\n",
@@ -227,7 +229,10 @@
 									"./config set amazon-ses.access-key ", { "Ref": "PhabricatorServiceAccountKeySecret" }, "\n",
 									"./config set amazon-ses.secret-key ", { "Fn::GetAtt": ["PhabricatorServiceAccountKeySecret", "SecretAccessKey"] }, "\n",
 									"./config set repository.default-local-path /mnt/xvdb\n",
-									"./config set phabricator.base-uri \"http://$(curl http://169.254.169.254/latest/meta-data/public-ipv4)\""
+									"./config set mysql.user ", {"Ref":"DbUsername"}, "\n",
+									"./config set mysql.pass ", {"Ref":"DbPassword"}, "\n",
+									"./config set mysql.host ", {"Fn::GetAtt" : [ "Database", "Endpoint.Address"]},"\n",
+									"./config set phabricator.base-uri \"", { "Ref": "Hostname" }, "\""
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
@@ -254,7 +259,6 @@
 									"mkdir /home/daemon-user",
 									"chown daemon-user /home/daemon-user",
 									"chown daemon-user /mnt/xvdb/ -R",
-									"chown daemon-user /var/tmp/phd/pid -R",
 									"sudo -iu daemon-user /usr/local/phabricator/bin/phd start"
 								]]},
 								"mode"   : "000755",
@@ -315,10 +319,10 @@
 				}],
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
 					"#!/bin/bash\n",
-					"apt-get -qq update\n",
-					"apt-get -qq -y install python-setuptools\n",
-					"apt-get -qq -y install git mercurial subversion apache2 dpkg-dev\n",
-					"apt-get -qq -y install php5 php5-mysql php5-gd php5-dev php5-curl php-apc php5-cli php5-json\n",
+					"apt-get update\n",
+					"apt-get -y install python-setuptools\n",
+					"apt-get -y install git mercurial subversion apache2 dpkg-dev\n",
+					"apt-get -y install php5 php5-mysql php5-gd php5-dev php5-curl php-apc php5-cli php5-json\n",
 					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
 					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r PhabricatorWeb -c config"
 				]]}},
@@ -330,7 +334,8 @@
 				],
 				"Volumes" : [
 					{"Device": "xvdb", "VolumeId" : {"Ref": "RepoDisk"}}
-				]
+				],
+				"Tags" : [{"Key": "Name", "Value" : "Phabricator"}]
 			}
 		},
 
@@ -339,7 +344,7 @@
 			"Properties" : {
 				"GroupDescription" : "Phabricator rds mysql server security group.",
 				"VpcId" : { "Ref" : "VpcId"},
-				"Tags": [{"Key": "Name", "Value" : "Es Cluster Load Balancer"}]
+				"Tags": [{"Key": "Name", "Value" : "Phabricator Database"}]
 			}
 		},
 		"WebServerSg" : {
@@ -351,7 +356,7 @@
 					{ "IpProtocol" : "6" ,  "CidrIp": "0.0.0.0/0", "FromPort" : "443", "ToPort" : "443"  }
 				],
 				"VpcId" : { "Ref" : "VpcId"},
-				"Tags": [{"Key": "Name", "Value" : "Es Cluster Load Balancer"}]
+				"Tags": [{"Key": "Name", "Value" : "Phabricator Web Server"}]
 			}
 		},
 		"WebToDatabaseEgress" : {
