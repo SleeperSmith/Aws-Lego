@@ -202,7 +202,7 @@
 			"Type" : "AWS::EC2::NetworkAclEntry",
 			"Properties" : {
 				"NetworkAclId" : { "Ref" : "Acl" },
-				"RuleNumber" : "1002",
+				"RuleNumber" : "1003",
 				"Protocol" : "6",
 				"RuleAction" : "allow",
 				"Egress" : "false",
