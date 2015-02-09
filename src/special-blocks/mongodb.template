@@ -6,7 +6,8 @@
 	"Parameters": {
 		"KeyPairName": {
 			"Description": "Name of an existing EC2 KeyPair to enable SSH access to the instances",
-			"Type": "String"
+			"Type": "String",
+			"Default": "none-prod"
 		},
 
 		"DataNodeInstanceType" : {
@@ -32,9 +33,8 @@
 		"DataNodeCount" : {
 			"Description" : "Instance count for the active data nodes.",
 			"Type" : "Number",
-			"Default" : "1",
+			"Default" : "2",
 			"AllowedValues": [
-				"1",
 				"2",
 				"4",
 				"6"
@@ -59,9 +59,8 @@
 		"ArbiterNodeCount" : {
 			"Description" : "Instance count for the passive arbiter nodes.",
 			"Type" : "Number",
-			"Default" : "0",
+			"Default" : "1",
 			"AllowedValues": [
-				"0",
 				"1",
 				"3",
 				"5"
@@ -87,6 +86,16 @@
 			"Type": "String",
 			"Default": "MongoCluster"
 		},
+		"AssociatePublicAddress": {
+			"Description" : "To attach a public address or not. If provisioned to a public subnet without NAT, needs to be set to true.",
+			"Type" : "String",
+			"Default" : "false",
+			"AllowedValues": [
+				"true",
+				"false"
+			],
+			"ConstraintDescription" : "Can only 'true' or 'false'. Default is 'false'"
+		},
 
 		"VpcId": {
 			"Description" : "VPCid associated with the subnets. [nat-enabled.parameters.VpcId]",
@@ -107,23 +116,6 @@
 		}
 	},
 
-	"Mappings" : {
-		"InstanceVariables" : {
-			"t2.micro": { "ram" : "450" },
-			"t2.small": { "ram" : "950" },
-			"t2.medium": { "ram" : "1950" },
-			"m3.medium": { "ram" : "1800", "spotprice": "0.02"},
-			"m3.large": { "ram" : "3600", "spotprice": "0.03" },
-			"m3.xlarge": { "ram" : "7000", "spotprice": "0.05" },
-			"m3.2xlarge": { "ram" : "14500", "spotprice": "0.09" },
-			"r3.large": { "ram" : "7500", "spotprice": "0.03" },
-			"r3.xlarge": { "ram" : "15000", "spotprice": "0.05" },
-			"r3.2xlarge": { "ram" : "30000", "spotprice": "0.09" },
-			"r3.4xlarge": { "ram" : "60000", "spotprice": "0.17" },
-			"r3.8xlarge": { "ram" : "12000", "spotprice": "0.4" }
-		}
-	},
-
 	"Resources" : {
 		"BaseLc" : {
 			"Type" : "AWS::AutoScaling::LaunchConfiguration",
@@ -132,7 +124,8 @@
 				"AWS::CloudFormation::Init" : {
 					"configSets": {
 						"config": [
-							"install-mongodb"
+							"install-mongodb",
+							"mongodb-config"
 						]
 					},
 					"install-mongodb" : {
@@ -158,24 +151,6 @@
 								"ignoreErrors" : "false"
 							}
 						}
-					}
-				}
-			},
-			"Properties": {
-				"InstanceType" : { "Ref" : "DataNodeInstanceType" },
-				"ImageId" : { "Ref" : "ClusterAmi" },
-				"KeyName" : { "Ref" : "KeyPairName" }
-			}
-		},
-
-		"DataNodeLc" : {
-			"Type" : "AWS::AutoScaling::LaunchConfiguration",
-			"Metadata" : {
-				"AWS::CloudFormation::Init" : {
-					"configSets": {
-						"config": [
-							"mongodb-config"
-						]
 					},
 					"mongodb-config" : {
 						"files" : {
@@ -242,6 +217,17 @@
 			"Properties": {
 				"InstanceType" : { "Ref" : "DataNodeInstanceType" },
 				"ImageId" : { "Ref" : "ClusterAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" }
+			}
+		},
+
+		"DataNodeLc" : {
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Metadata" : {
+			},
+			"Properties": {
+				"InstanceType" : { "Ref" : "DataNodeInstanceType" },
+				"ImageId" : { "Ref" : "ClusterAmi" },
 				"KeyName" : { "Ref" : "KeyPairName" },
 				"AssociatePublicIpAddress": "true",
 				"SecurityGroups": [
@@ -253,8 +239,7 @@
 					"apt-get update\n",
 					"apt-get -y install python-setuptools default-jre\n",
 					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
-					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r BaseLc -c config\n",
-					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r DataNodeLc -c config"
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r BaseLc -c config\n"
 				]]}},
 				"BlockDeviceMappings" : [
 					{
@@ -286,71 +271,6 @@
 			"Type" : "AWS::AutoScaling::LaunchConfiguration",
 			"Metadata" : {
 				"AWS::CloudFormation::Init" : {
-					"configSets": {
-						"config": [
-							"mongodb-config"
-						]
-					},
-					"mongodb-config" : {
-						"files" : {
-							"/home/usr/local/mount-disk.sh" : {
-								"content" : { "Fn::Join" : ["", [
-									"#!/bin/bash\n",
-									"mkfs -t ext4 /dev/$1\n",
-									"mkdir /mnt/$1\n",
-									"mount -t ext4 /dev/$1 /mnt/$1\n",
-									"mkdir /mnt/$1/mongodb/\n",
-									"mkdir /mnt/$1/mongolog/\n",
-									"chown mongodb:mongodb /mnt/$1 -R\n"
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							},
-							"/etc/mongod.conf" : {
-								"content" : { "Fn::Join" : ["", [
-									"systemLog:\n",
-									"  logAppend: true\n",
-									"  path: '/mnt/xvdb/mongolog/mongod.log'\n",
-									"  destination: file\n",
-									"storage:\n",
-									"  dbPath: '/mnt/xvdb/mongodb'\n",
-									"replication:\n",
-									"  replSetName: ", {"Ref": "ClusterName"}, "\n",
-									"net:\n"
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							},
-							"/home/usr/local/append-privateip.sh" : {
-								"content" : { "Fn::Join" : ["", [
-									"#!/bin/bash\n",
-									"echo \"  bindIp: $(curl http://169.254.169.254/latest/meta-data/local-ipv4)\n\" >> /etc/mongod.conf\n"
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							}
-						},
-						"commands" : {
-							"1-mount-gp-ssd": {
-								"command" : "./mount-disk.sh xvdb",
-								"cwd" : "/home/usr/local/",
-								"ignoreErrors" : "false"
-							},
-							"2-append-ip": {
-								"command" : "./append-privateip.sh",
-								"cwd" : "/home/usr/local/",
-								"ignoreErrors" : "false"
-							},
-							"2-restart-mongod": {
-								"command" : "service mongod restart",
-								"cwd" : "/home/usr/local/",
-								"ignoreErrors" : "false"
-							}
-						}
-					}
 				}
 			},
 			"Properties": {
@@ -367,8 +287,7 @@
 					"apt-get update\n",
 					"apt-get -y install python-setuptools default-jre\n",
 					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
-					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r BaseLc -c config\n",
-					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r ArbiterNodeLc -c config\n"
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r BaseLc -c config\n"
 				]]}},
 				"BlockDeviceMappings" : [
 					{
