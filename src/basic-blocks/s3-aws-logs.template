@@ -1,6 +1,6 @@
 {
 	"AWSTemplateFormatVersion": "2010-09-09",
-	"Description": "Base for oban datastore.",
+	"Description": "Buckets to hold aws logs.",
 	"Parameters": {
 		"RawLogBucketName" : {
 			"Description" : "Bucket name for raw logs from elastic load balancer and cloud trail.",
@@ -21,12 +21,10 @@
 					"Status": "Enabled"
 				},
 				"NotificationConfiguration" : {
-					"TopicConfigurations" : [
-						{
-                            "Topic": {"Ref":"S3AccessLogBucketNotification"},
-                            "Event": "s3:ObjectCreated:*"
-                        }
-					]
+					"TopicConfigurations" : [{
+						"Topic": {"Ref":"AccessLogBucketNotification"},
+						"Event": "s3:ObjectCreated:*"
+					}]
 				}
 			},
 			"DeletionPolicy" : "Retain"
@@ -61,12 +59,10 @@
 					"Status": "Enabled"
 				},
 				"NotificationConfiguration" : {
-					"TopicConfigurations" : [
-						{
-                            "Topic": {"Ref":"RawBucketNotification"},
-                            "Event": "s3:ObjectCreated:*"
-                        }
-					]
+					"TopicConfigurations" : [{
+						"Topic": {"Ref":"RawBucketNotification"},
+						"Event": "s3:ObjectCreated:*"
+					}]
 				}
 			},
 			"DeletionPolicy" : "Retain"
@@ -136,7 +132,7 @@
 		"RawBucketNotification" : {
 			"Type" : "AWS::SNS::Topic",
 			"Properties" : {
-				"DisplayName" : "Raw Bucket Event Notification",
+				"DisplayName" : "CloudTrail and ELB Bucket Event Notification",
 				"TopicName" : { "Fn::Join": ["", [
 					"s3-event-", {"Ref": "RawLogBucketName"}
 				]]}
@@ -178,9 +174,9 @@
 		"AccessLogBucketNotification" : {
 			"Type" : "AWS::SNS::Topic",
 			"Properties" : {
-				"DisplayName" : "S3 Access Log Bucket Event Notification",
+				"DisplayName" : "S3 and CloudFront Access Log Bucket Event Notification",
 				"TopicName" : { "Fn::Join": ["", [
-					"s3-event-", {"Ref": "AccessLog"}
+					"s3-event-", {"Ref": "AccessLogBucketName"}
 				]]}
 			}
 		},
@@ -201,7 +197,7 @@
 							"SNS:Publish"
 						],
 						"Resource": [
-							{"Ref": "RawBucketNotification" }
+							{"Ref": "AccessLogBucketNotification" }
 						],
 						"Condition": {
 							"ArnLike": {          
@@ -213,7 +209,7 @@
 					}]
 				},
 				"Topics": [
-					{"Ref": "RawBucketNotification" }
+					{"Ref": "AccessLogBucketNotification" }
 				]
 			}
 		}
