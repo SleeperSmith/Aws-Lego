@@ -1,0 +1,363 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+
+	"Description": "Zookeeper + exhibitor from Netflix + s3 config. Instances managed by ELB.",
+
+	"Parameters": {
+		"KeyPairName": {
+			"Description": "Name of an existing EC2 KeyPair to enable SSH access to the instances",
+			"Type": "String",
+			"Default" : "none-prod"
+		},
+
+		"MasterNodeInstanceType" : {
+			"Description" : "WebServer EC2 instance type",
+			"Type" : "String",
+			"Default" : "t2.micro",
+			"AllowedValues": [
+				"t2.micro",
+				"t2.small",
+				"t2.medium",
+				"m3.medium",
+				"m3.large",
+				"m3.xlarge",
+				"m3.2xlarge"
+			],
+			"ConstraintDescription" : "must be a valid EC2 instance type."
+		},
+		"EsClusterAmi": {
+			"Description": "AMI to use. Note Ubuntu is prefered.",
+			"Default": "ami-fddabdc7",
+			"Type": "String"
+		},
+
+		"InitialNodeCount": {
+			"Description": "Number of shards per index.",
+			"Default": "1",
+			"Type": "Number"
+		},
+		"ConfigBucketName" : {
+			"Description" : "Bucket where the config goes into.",
+			"Type": "String"
+		},
+
+		"VpcId": {
+			"Description" : "VPCid associated with the subnets. [subnets.parameters.VpcId]",
+			"Type": "String"
+		},
+		"Subnet1Id": {
+			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet1]",
+			"Type": "String"
+		},
+		"Subnet2Id": {
+			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet2]",
+			"Type": "String"
+		},
+		"Subnet3Id": {
+			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet3]",
+			"Type": "String",
+			"Default": ""
+		},
+
+		"TemplateBaseUrl": {
+			"Description" : "Additional resources are expected from this url; pom.xml",
+			"Type": "String"
+		},
+		"ZookeeperJarUrl" : {
+			"Description" : "Url to ZookeeperJar",
+			"Type": "String",
+			"Default" : "http://apache.mirror.uber.com.au/zookeeper/zookeeper-3.4.6/"
+		},
+		"ZookeeperJarFileName" : {
+			"Description" : "Url to ZookeeperJar",
+			"Type": "String",
+			"Default" : "zookeeper-3.4.6.tar.gz"
+		}
+	},
+
+	"Mappings" : {
+		"InstanceVariables" : {
+			"t2.micro": { "ram" : "450" },
+			"t2.small": { "ram" : "950" },
+			"t2.medium": { "ram" : "1950" },
+			"m3.medium": { "ram" : "1800", "spotprice": "0.02"},
+			"m3.large": { "ram" : "3600", "spotprice": "0.03" },
+			"m3.xlarge": { "ram" : "7000", "spotprice": "0.05" },
+			"m3.2xlarge": { "ram" : "14500", "spotprice": "0.09" },
+			"r3.large": { "ram" : "7500", "spotprice": "0.03" },
+			"r3.xlarge": { "ram" : "15000", "spotprice": "0.05" },
+			"r3.2xlarge": { "ram" : "30000", "spotprice": "0.09" },
+			"r3.4xlarge": { "ram" : "60000", "spotprice": "0.17" },
+			"r3.8xlarge": { "ram" : "12000", "spotprice": "0.4" }
+		}
+	},
+
+	"Resources" : {
+		"ConfigBucket" : {
+			"Type" : "AWS::S3::Bucket",
+			"Properties" : {
+				"BucketName" : {"Ref":"ConfigBucketName"}
+			}
+		},
+		"ZkNodeLc" : {
+			"DependsOn" : "ConfigBucket",
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Metadata" : {
+				"AWS::CloudFormation::Init" : {
+					"configSets": {
+						"config": [
+							"setup"
+						]
+					},
+					"setup" : {
+						"files" : {
+							"/home/local/exhibitor/pom.xml" : {
+								"source" : { "Fn::Join" : ["", [
+									{"Ref":"TemplateBaseUrl"},"exhibitor-pom.xml"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/home/local/exhibitor/build.sh" : {
+								"content" : { "Fn::Join" : ["", [
+									"#!/bin/bash\n",
+									"export JAVA_HOME=\"/usr/lib/jvm/java-7-openjdk-amd64/\"\n",
+									"mvn clean package\n"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/etc/init/exhibitor.conf" : {
+								"content" : { "Fn::Join" : ["", [
+									"script\n",
+									"    ulimit -n 40000\n",
+									"    export ES_HEAP_SIZE=",{ "Fn::FindInMap": [ "InstanceVariables", { "Ref": "MasterNodeInstanceType" }, "ram" ] },"m\n",
+									"    java -jar /home/local/exhibitor/target/exhibitor-1.5.3.jar -c s3 ",
+										"--s3config ",{"Ref":"ConfigBucketName"},":exhibitor-zk.config --s3region ",{"Ref":"AWS::Region"},"\n",
+									"end script\n",
+									"respawn limit 3 60"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/home/local/zookeeper/bin/setup-zookeeper.sh" : {
+								"content" : { "Fn::Join" : ["", [
+									"#!/bin/bash\n",
+									"wget ",{"Ref":"ZookeeperJarUrl"},{"Ref":"ZookeeperJarFileName"},"\n",
+									"tar zxvf ",{"Ref":"ZookeeperJarFileName"},"\n",
+									"./zookeeper-3.4.6/bin/zkServer.sh start\n"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							}
+						},
+						"comands" : {
+							"1-setup-zookeeper" : {
+								"command" : "./setup-zookeeper.sh",
+								"cwd" : "/home/local/zookeeper/bin"
+							},
+							"2-compile-exhibitor" : {
+								"command" : "./build.sh",
+								"cwd" : "/home/local/exhibitor"
+							},
+							"3-start-exhibitor" : {
+								"command" : "service exhibitor start",
+								"cwd" : "/usr/local/phabricator"
+							}
+						}
+					}
+				}
+			},
+			"Properties": {
+				"InstanceType" : { "Ref" : "MasterNodeInstanceType" },
+				"ImageId" : { "Ref" : "EsClusterAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" },
+				"AssociatePublicIpAddress": "true",
+				"SecurityGroups": [
+					{ "Ref" : "ZkNodeSg" }
+				],
+				"IamInstanceProfile": { "Ref" : "ZkNodeInstanceProfile" },
+				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+					"#!/bin/bash\n",
+					"apt-get update\n",
+					"apt-get -y install python-setuptools default-jre maven\n",
+					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r ZkNodeLc -c config\n"
+				]]}},
+				"BlockDeviceMappings" : [
+					{
+						"DeviceName" : "/dev/sda1",
+						"Ebs" : { "VolumeSize" : "20", "VolumeType" : "gp2" }
+					}
+				]
+			}
+		},
+		"ZkNodeAsg" : {
+		  "Type" : "AWS::AutoScaling::AutoScalingGroup",
+		  "Properties" : {
+		    "VPCZoneIdentifier": [
+				{ "Ref" : "Subnet1Id" }
+			],
+			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
+			"LaunchConfigurationName" : { "Ref" : "ZkNodeLc" },
+			"MinSize" : "1",
+			"MaxSize" : "4",
+			"DesiredCapacity" : "1",
+			"LoadBalancerNames" : [ { "Ref" : "ZkAccessPoint" } ],
+			"Tags" : [{"Key": "Name", "Value" : "Zookeeper Node", "PropagateAtLaunch" : "True"}]
+		  }
+		},
+		"ZkAccessPoint" : {
+			"Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+			"Properties" : {
+				"Subnets": [
+					{ "Ref" : "Subnet1Id" }
+				],
+				"Listeners" : [
+				{
+					"LoadBalancerPort" : "2181",
+					"InstancePort" : "2181",
+					"Protocol" : "TCP"
+				},
+				{
+					"LoadBalancerPort" : "80",
+					"InstancePort" : "8080",
+					"Protocol" : "HTTP"
+				}],
+				"HealthCheck" : {
+					"Target" : { "Fn::Join" : [ "", ["HTTP:8080/"]]},
+					"HealthyThreshold" : "3",
+					"UnhealthyThreshold" : "5",
+					"Interval" : "30",
+					"Timeout" : "5"
+				},
+				"SecurityGroups": [{ "Ref": "ZkElbSg" }],
+				"Scheme": "internal"
+			}
+		},
+
+		"ZkNodeInstanceProfile": {
+			"Type": "AWS::IAM::InstanceProfile",
+			"Properties": {
+				"Path": "/zookeeper/",
+				"Roles": [{ "Ref": "ZkNodeRole" }]
+			}
+		},
+		"ZkNodeRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": [ "ec2.amazonaws.com" ]
+							},
+							"Action": [ "sts:AssumeRole" ]
+						}
+					]
+				},
+				"Path": "/zookeeper/",
+				"Policies": [{
+					"PolicyName": "AccessConfigBucket",
+					"PolicyDocument": {
+						"Version" : "2012-10-17",
+						"Statement": [{
+							"Action": [
+								"s3:AbortMultipartUpload",
+								"s3:DeleteObject",
+								"s3:GetBucketAcl",
+								"s3:GetBucketPolicy",
+								"s3:GetObject",
+								"s3:GetObjectAcl",
+								"s3:ListBucket",
+								"s3:ListBucketMultipartUploads",
+								"s3:ListMultipartUploadParts",
+								"s3:PutObject",
+								"s3:PutObjectAcl"
+							],
+							"Effect": "Allow",
+							"Resource": [
+								{"Fn::Join":["",["arn:aws:s3:::",{"Ref":"ConfigBucketName"},"/*"]]},
+								{"Fn::Join":["",["arn:aws:s3:::",{"Ref":"ConfigBucketName"}]]}
+							]
+						}]
+					}
+				}]
+			}
+		},
+
+		"ZkNodeSg" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" : {
+				"GroupDescription" : "Load Balancer targets.",
+				"SecurityGroupIngress" : [
+					{ "IpProtocol": "6", "SourceSecurityGroupId" : { "Ref" : "ZkElbSg" }, "FromPort" : "8080", "ToPort" : "8080" },
+					{ "IpProtocol": "6", "SourceSecurityGroupId" : { "Ref" : "ZkElbSg" }, "FromPort" : "2181", "ToPort" : "2181" }
+				],
+				"VpcId" : { "Ref" : "VpcId"},
+				"Tags": [{"Key": "Name", "Value" : "Es Cluster Gateway Nodes"}]
+			}
+		},
+		"ZkNodeSelfIngressFollow" : {
+			"Type" : "AWS::EC2::SecurityGroupIngress",
+			"Properties" : {
+				"IpProtocol" : "tcp",
+				"ToPort" : "2888",
+				"FromPort" : "2888",
+				"GroupId" : { "Ref" : "ZkNodeSg" },
+				"SourceSecurityGroupId" : { "Ref" : "ZkNodeSg" }
+			}
+		},
+		"ZkNodeSelfIngressElection" : {
+			"Type" : "AWS::EC2::SecurityGroupIngress",
+			"Properties" : {
+				"IpProtocol" : "tcp",
+				"ToPort" : "3888",
+				"FromPort" : "3888",
+				"GroupId" : { "Ref" : "ZkNodeSg" },
+				"SourceSecurityGroupId" : { "Ref" : "ZkNodeSg" }
+			}
+		},
+
+		"ZkElbSg" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" : {
+				"GroupDescription" : "Access point for zookeeper.",
+				"VpcId" : { "Ref" : "VpcId"},
+				"Tags": [{"Key": "Name", "Value" : "Zookeeper Access Point"}]
+			}
+		},
+		"ZkElbToEsClusterGatewayNodeEgress" : {
+			"Type": "AWS::EC2::SecurityGroupEgress",
+			"Properties":{
+				"IpProtocol": "tcp",
+				"FromPort": "2181",
+				"ToPort": "2181",
+				"GroupId": { "Ref" : "ZkElbSg" },
+				"DestinationSecurityGroupId": { "Ref" : "ZkConsumerSg" }
+			}
+		},
+
+		"ZkConsumerSg" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" : {
+				"GroupDescription" : "Zookeeper consumers.",
+				"VpcId" : { "Ref" : "VpcId"},
+				"Tags": [{"Key": "Name", "Value" : "Zookeeper Consumer"}]
+			}
+		}
+	},
+
+	"Outputs" : {
+		"AccessPoint" : {
+			"Value" : { "Fn::GetAtt" : ["ZkAccessPoint", "DNSName"] },
+			"Description" : "Private A record for Zookeeper clients to connect with."
+		}
+	}
+}
