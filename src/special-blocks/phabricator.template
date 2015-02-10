@@ -1,7 +1,7 @@
 {
 	"AWSTemplateFormatVersion": "2010-09-09",
 
-	"Description": "A template to launch elasticsearch cluster.",
+	"Description": "A template to launch phabricator with or withour snapshot.",
 
 	"Parameters": {
 		"KeyPairName": {
@@ -94,7 +94,7 @@
 			"Type": "String"
 		},
 		"Subnet1Id": {
-			"Description" : "Subnet to run HA web cluster on. [webserver.resources.Subnet1]",
+			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet1]",
 			"Type": "String"
 		},
 		"VpcId": {
@@ -154,7 +154,10 @@
 			"Properties" : {
 				"AvailabilityZone" : {"Fn::Select":["0", { "Fn::GetAZs": "" }]},
 				"Size" : "5",
-				"SnapshotId" : "",
+				"SnapshotId" : {"Fn::If":["HasRepoSnapshot",
+					{"Ref":"RepoDiskSnapshot"},
+					{"Ref":"AWS::NoValue"}
+				]},
 				"Tags" : [],
 				"VolumeType" : "standard"
 			},
@@ -210,7 +213,8 @@
 						"files" : {
 							"/usr/local/mount-disk.sh" : {
 								"content" : { "Fn::Join" : ["\n", [
-									"mkfs -t ext4 /dev/xvdb",
+									"#!/bin/bash",
+									{"Fn::If":["HasRepoSnapshot","","mkfs -t ext4 /dev/xvdb"]},
 									"sudo mkdir /mnt/xvdb",
 									"sudo mount -t ext4 /dev/xvdb /mnt/xvdb"
 								]]},
@@ -220,6 +224,7 @@
 							},
 							"/usr/local/phabricator/bin/configure.sh" : {
 								"content" : { "Fn::Join" : ["", [
+									"#!/bin/bash\n",
 									"./config set phd.user daemon-user\n",
 									"./config set phabricator.timezone ", {"Ref": "PhabTimezone"}, "\n",
 									"./config set storage.upload-size-limit 5M\n",
@@ -240,6 +245,7 @@
 							},
 							"/usr/local/phabricator/misc.sh" : {
 								"content" : { "Fn::Join" : ["", [
+									"#!/bin/bash\n",
 									"ln -s /usr/lib/git-core/git-http-backend /usr/local/phabricator/support/bin/git-http-backend\n",
 									"./bin/storage upgrade -f\n",
 									"echo \"www-data ALL=(daemon-user) SETENV: NOPASSWD: /usr/lib/git-core/git-http-backend, /usr/bin/hg\" >> /etc/sudoers\n",
@@ -255,6 +261,7 @@
 							},
 							"/usr/local/phabricator/setup-phd.sh" : {
 								"content" : { "Fn::Join" : ["\n", [
+									"#!/bin/bash",
 									"useradd daemon-user",
 									"mkdir /home/daemon-user",
 									"chown daemon-user /home/daemon-user",
