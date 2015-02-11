@@ -1,6 +1,6 @@
 {
 	"AWSTemplateFormatVersion": "2010-09-09",
-	"Description": "Base for oban datastore.",
+	"Description": "A public bucket with access logging configured.",
 	"Parameters": {
 		"BucketName" : {
 			"Description" : "Creates a bucket with public read access and set access logging to the specified bucket.",
