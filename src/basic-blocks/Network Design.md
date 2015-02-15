@@ -28,3 +28,15 @@ AWS ELB exposed internally that public servers may call into.
 Internal subnets that are considered safe.  
 
 Essentially public subnet only calls into the 2nd to 4th type of subnets and will never access internal servers directly. This design completely mitigate the risk of using compromised servers to 'hop' into the network as sooner or later, they will be blocked by an AWS managed service, usually an ELB.
+
+## Basic reference deployment.
+
+10.0.0.0~2.0 -> Public Web Server  
+(10.0.0.0/19 means enough room for another gateway subnet + nat enabled)
+10.0.32.0~34.0 -> Private  
+10.0.38.0~40.0 -> Public ELB  
+10.0.50.0~52.0 -> Private ELB  
+10.0.56.0~58.0 -> Outbound access only subnet without nat  
+10.0.68.0~70.0 -> Nat Enabled  
+10.0.80.0~82.0 -> Public web behind elb.  
+
