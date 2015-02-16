@@ -8,19 +8,19 @@
 		"Subnet1Suffix" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. ",
 			"Type" : "Number",
-			"Default" : "6"
+			"Default" : "0"
 		},
 
 		"Subnet2Suffix" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. ",
 			"Type" : "Number",
-			"Default" : "7"
+			"Default" : "1"
 		},
 
 		"Subnet3Suffix" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. ",
 			"Type" : "Number",
-			"Default" : "8"
+			"Default" : "2"
 		},
 
 		"VpcPrefix" : {

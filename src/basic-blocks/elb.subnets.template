@@ -8,37 +8,37 @@
 		"ElbSubnet1Suffix" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. ",
 			"Type" : "Number",
-			"Default" : "12"
+			"Default" : "38"
 		},
 
 		"ElbSubnet2Suffix" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. ",
 			"Type" : "Number",
-			"Default" : "13"
+			"Default" : "39"
 		},
 
 		"ElbSubnet3Suffix" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. ",
 			"Type" : "Number",
-			"Default" : "14"
+			"Default" : "40"
 		},
 
 		"PvtSubnet1Suffix" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. ",
 			"Type" : "Number",
-			"Default" : "30"
+			"Default" : "88"
 		},
 
 		"PvtSubnet2Suffix" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. ",
 			"Type" : "Number",
-			"Default" : "31"
+			"Default" : "89"
 		},
 
 		"PvtSubnet3Suffix" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. ",
 			"Type" : "Number",
-			"Default" : "32"
+			"Default" : "90"
 		},
 
 		"VpcPrefix" : {

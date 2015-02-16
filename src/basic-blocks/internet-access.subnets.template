@@ -1,26 +1,26 @@
 {
 	"AWSTemplateFormatVersion" : "2010-09-09",
 
-	"Description" : "A simple empty subnet",
+	"Description" : "Subnets that has outbound internet access and accepts no inbound connections. This is mainly used for servers that need direct access to the WAN; NAT, proxy. Other use cases include services that require massive bandwidth such as EMR and RedShift when used in combination with taking in data from S3.",
 
 	"Parameters" : {
 
 		"Subnet1Suffix" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. ",
 			"Type" : "Number",
-			"Default" : "0"
+			"Default" : "64"
 		},
 
 		"Subnet2Suffix" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. ",
 			"Type" : "Number",
-			"Default" : "1"
+			"Default" : "65"
 		},
 
 		"Subnet3Suffix" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. ",
 			"Type" : "Number",
-			"Default" : "2"
+			"Default" : "66"
 		},
 
 		"VpcPrefix" : {
