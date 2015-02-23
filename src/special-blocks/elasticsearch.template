@@ -223,7 +223,7 @@
 				"InstanceType" : { "Ref" : "DataNodeInstanceType" },
 				"ImageId" : { "Ref" : "EsClusterAmi" },
 				"KeyName" : { "Ref" : "KeyPairName" },
-				"AssociatePublicIpAddress": "true",
+				"AssociatePublicIpAddress": "false",
 				"SecurityGroups": [
 					{ "Ref" : "EsClusterNodeSg" }
 				],
@@ -314,7 +314,7 @@
 				"InstanceType" : { "Ref" : "DataNodeInstanceType" },
 				"ImageId" : { "Ref" : "EsClusterAmi" },
 				"KeyName" : { "Ref" : "KeyPairName" },
-				"AssociatePublicIpAddress": "true",
+				"AssociatePublicIpAddress": "false",
 				"SecurityGroups": [
 					{ "Ref" : "EsClusterNodeSg" }
 				],
