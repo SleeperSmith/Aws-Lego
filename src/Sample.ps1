@@ -1,6 +1,6 @@
 ﻿Set-DefaultAWSRegion ap-southeast-2
 
-$prefix = "https://s3-ap-southeast-2.amazonaws.com/bc-public-releases/AWS-Lego/Alpha/"
+$prefix = .\New-SampleDeployment.ps1
 .".\src\Deployment.ps1"
 
 $tags = @(
