@@ -1,26 +1,26 @@
 {
 	"AWSTemplateFormatVersion" : "2010-09-09",
 
-	"Description" : "Subnets thave have no access outbound access whatsoever.",
+	"Description" : "General purpose subnets twith a route table having the public route mapped through a NAT.",
 
 	"Parameters" : {
 
 		"Subnet1Suffix" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. ",
 			"Type" : "Number",
-			"Default" : "24"
+			"Default" : "76"
 		},
 
 		"Subnet2Suffix" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. ",
 			"Type" : "Number",
-			"Default" : "25"
+			"Default" : "77"
 		},
 
 		"Subnet3Suffix" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. ",
 			"Type" : "Number",
-			"Default" : "26"
+			"Default" : "78"
 		},
 
 		"VpcPrefix" : {
@@ -157,7 +157,33 @@
 			}
 		},
 
-		"AclEntryOutAll" : {
+		"AclEntryInVpcRequests" : {
+			"Type" : "AWS::EC2::NetworkAclEntry",
+			"Properties" : {
+				"NetworkAclId" : { "Ref" : "Acl" },
+				"RuleNumber" : "1000",
+				"Protocol" : "6",
+				"RuleAction" : "allow",
+				"Egress" : "false",
+				"CidrBlock" : { "Fn::Join" : [ "", [
+					{ "Ref" : "VpcPrefix" }, ".0.0/16"
+				]]},
+				"PortRange" : { "From" : "0", "To" : "32768" }
+			}
+		},
+		"AclEntryInPublicDataPort" : {
+			"Type" : "AWS::EC2::NetworkAclEntry",
+			"Properties" : {
+				"NetworkAclId" : { "Ref" : "Acl" },
+				"RuleNumber" : "1001",
+				"Protocol" : "6",
+				"RuleAction" : "allow",
+				"Egress" : "false",
+				"CidrBlock" : "0.0.0.0/0",
+				"PortRange" : { "From" : "32768", "To" : "65535" }
+			}
+		},
+		"AclEntryOutPublicRequests" : {
 			"Type" : "AWS::EC2::NetworkAclEntry",
 			"Properties" : {
 				"NetworkAclId" : { "Ref" : "Acl" },
@@ -169,29 +195,17 @@
 				"PortRange" : { "From" : "0", "To" : "32768" }
 			}
 		},
-		"AclEntryOutDataPortToVpc" : {
+		"AclEntryOutVpcDataPort" : {
 			"Type" : "AWS::EC2::NetworkAclEntry",
 			"Properties" : {
 				"NetworkAclId" : { "Ref" : "Acl" },
-				"RuleNumber" : "1003",
+				"RuleNumber" : "1001",
 				"Protocol" : "6",
 				"RuleAction" : "allow",
 				"Egress" : "true",
 				"CidrBlock" : { "Fn::Join" : [ "", [
 					{ "Ref" : "VpcPrefix" }, ".0.0/16"
 				]]},
-				"PortRange" : { "From" : "32768", "To" : "65535" }
-			}
-		},
-		"AclEntryInDataPort" : {
-			"Type" : "AWS::EC2::NetworkAclEntry",
-			"Properties" : {
-				"NetworkAclId" : { "Ref" : "Acl" },
-				"RuleNumber" : "1000",
-				"Protocol" : "6",
-				"RuleAction" : "allow",
-				"Egress" : "false",
-				"CidrBlock" : "0.0.0.0/0",
 				"PortRange" : { "From" : "32768", "To" : "65535" }
 			}
 		}
