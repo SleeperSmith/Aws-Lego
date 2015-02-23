@@ -148,6 +148,7 @@
 									"#!/bin/bash\n",
 									"wget ",{"Ref":"ZookeeperJarUrl"},{"Ref":"ZookeeperJarFileName"},"\n",
 									"tar zxvf ",{"Ref":"ZookeeperJarFileName"},"\n",
+									"cp ./zookeeper-3.4.6/conf/zoo_sample.cfg ./zookeeper-3.4.6/conf/zoo.cfg\n",
 									"./zookeeper-3.4.6/bin/zkServer.sh start\n"
 								]]},
 								"mode"   : "000755",
@@ -155,7 +156,7 @@
 								"group"  : "ubuntu"
 							}
 						},
-						"comands" : {
+						"commands" : {
 							"1-setup-zookeeper" : {
 								"command" : "./setup-zookeeper.sh",
 								"cwd" : "/home/local/zookeeper/bin"
@@ -176,7 +177,7 @@
 				"InstanceType" : { "Ref" : "MasterNodeInstanceType" },
 				"ImageId" : { "Ref" : "EsClusterAmi" },
 				"KeyName" : { "Ref" : "KeyPairName" },
-				"AssociatePublicIpAddress": "true",
+				"AssociatePublicIpAddress": "false",
 				"SecurityGroups": [
 					{ "Ref" : "ZkNodeSg" }
 				],
