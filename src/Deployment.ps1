@@ -69,6 +69,9 @@ function Get-StackLinkParameters {
     $templateUrlSegments = $TemplateUrl.Split('/')
     $templateUrlSegments[$templateUrlSegments.Count-1] = ""
     $templateUrlBase = [string]::Join("/", $templateUrlSegments)
+    if ($cfnNewLaunchTargetParameterKeys.Contains($TemplateUrlBaseParameterKey)) {
+        $StackParameters += @{"Key" = $TemplateUrlBaseParameterKey; "Value" = $templateUrlBase}
+    }
 
     Write-Host == Existing Stacks ==
     $cfnStacks = Get-CFNStack | ? {
