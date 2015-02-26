@@ -15,7 +15,7 @@
 		"Bucket" : {
 			"Type" : "AWS::S3::Bucket",
 			"Properties" : {
-				"AccessControl" : "PublicRead",
+				"AccessControl" : "Private",
 				"BucketName" : {"Ref": "BucketName"},
 				"LoggingConfiguration": {
 					"DestinationBucketName" : { "Ref": "AccessLogBucketName"},
@@ -24,7 +24,22 @@
 					]]}
 				}
 			}
-		}
+		},
+		"BucketPolicy" : {
+			"Type" : "AWS::S3::BucketPolicy",
+			"Properties" : {
+				"Bucket" : {"Ref" : "Bucket"},
+				"PolicyDocument": {
+					"Statement":[
+					{
+						"Action":["s3:GetObject"],
+						"Effect":"Allow",
+						"Resource": { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "Bucket" } , "/*" ]]},
+						"Principal":"*"
+					}]
+				}
+			}
+  		}
 	},
 	"Outputs" : {
 	}
