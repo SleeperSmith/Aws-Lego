@@ -8,6 +8,11 @@
 			"Description" : "Prefix for the VPC",
 			"Type" : "String",
 			"Default" : "10.0"
+		},
+		"VpcName" : {
+			"Description" : "Display name for the VPC",
+			"Type" : "String",
+			"Default" : "Lego"
 		}
 	},
 
@@ -33,7 +38,9 @@
 				"CidrBlock" :  { "Fn::Join" : [ "", [
 					{ "Ref" : "VpcPrefix" }, ".0.0/16"
 				]]},
-				"Tags" : []
+				"Tags" : [{ "Key" : "Name" , "Value" : { "Ref" : "VpcName" } }],
+				"EnableDnsHostnames" : "true",
+				"EnableDnsSupport" : "true"
 			}
 		},
 
