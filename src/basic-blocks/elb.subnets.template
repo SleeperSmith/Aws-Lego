@@ -496,7 +496,7 @@
 				"RuleNumber" : "1002",
 				"Protocol" : "6",
 				"RuleAction" : "allow",
-				"Egress" : "false",
+				"Egress" : "true",
 				"CidrBlock" : { "Fn::Join" : [ "", [
 					{ "Ref" : "VpcPrefix" }, ".", { "Ref" : "ElbSubnet2Suffix" }, ".0/24"
 				]]},
@@ -510,7 +510,7 @@
 				"RuleNumber" : "1003",
 				"Protocol" : "6",
 				"RuleAction" : "allow",
-				"Egress" : "false",
+				"Egress" : "true",
 				"CidrBlock" : { "Fn::Join" : [ "", [
 					{ "Ref" : "VpcPrefix" }, ".", { "Ref" : "ElbSubnet3Suffix" }, ".0/24"
 				]]},
