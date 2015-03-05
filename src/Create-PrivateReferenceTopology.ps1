@@ -9,17 +9,17 @@ $tags = @(
 )
 
 Get-StackLinkParameters -TemplateUrl "$($prefix)basic-blocks/vpc.template" |
-    Upsert-StackLink -Tags $tags -StackName Test-PrimaryVpc |
+    Upsert-StackLink -Tags $tags -StackName Prod-PrimaryVpc |
     Wait-StackLink
 
 Get-StackLinkParameters -TemplateUrl "$($prefix)basic-blocks/internet-access.subnets.template" |
-    Upsert-StackLink -Tags $tags -StackName Test-GatewaySubnets |
+    Upsert-StackLink -Tags $tags -StackName Prod-GatewaySubnets |
     Wait-StackLink
 
 Get-StackLinkParameters -TemplateUrl "$($prefix)basic-blocks/webserver.subnets.template" |
-    Upsert-StackLink -Tags $tags -StackName Test-WebServerSubnets |
+    Upsert-StackLink -Tags $tags -StackName Prod-WebServerSubnets |
     Wait-StackLink
 
 Get-StackLinkParameters -TemplateUrl "$($prefix)basic-blocks/private.subnets.template" |
-    Upsert-StackLink -Tags $tags -StackName Test-PrivateSubnets |
+    Upsert-StackLink -Tags $tags -StackName Prod-PrivateSubnets |
     Wait-StackLink
