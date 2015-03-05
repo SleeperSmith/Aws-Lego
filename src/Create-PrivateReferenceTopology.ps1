@@ -1,5 +1,5 @@
 ﻿param(
-    $prefix = "https://s3-ap-southeast-2.amazonaws.com/bc-deployment/AWS-Lego/Alpha/"
+    $prefix = "https://s3-ap-southeast-2.amazonaws.com/bc-public-releases/AWS-Lego/Alpha/"
 )
 
 .".\Deployment.ps1"
