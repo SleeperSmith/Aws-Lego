@@ -206,7 +206,7 @@ function Upsert-StackLink(
     }
     Write-Host StackArn: $stackId
     Write-Host "## End New-StackLink ##"
-    return $stackId
+    return $StackName
 }
 
 function Wait-StackLink(
@@ -226,8 +226,8 @@ function Wait-StackLink(
         [Amazon.CloudFormation.StackStatus]::ROLLBACK_IN_PROGRESS
     )
 
-    while($statusToBlock.Contains((Get-CFNStack $StackLinkId).StackStatus)) {
-        Write-Host "Waiting... Stack status: " (Get-CFNStack $StackLinkId).StackStatus
+    while($statusToBlock.Contains((Get-CFNStack -StackName $StackLinkId).StackStatus)) {
+        Write-Host "Waiting... Stack status: " (Get-CFNStack -StackName $StackLinkId).StackStatus
         sleep $PollInterval
     }
     Write-Host "## End Wait-StackLink ##"
