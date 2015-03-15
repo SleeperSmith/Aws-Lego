@@ -61,7 +61,7 @@
 		},
 		"EsConfReplica": {
 			"Description": "Number of replicas.",
-			"Default": "0",
+			"Default": "1",
 			"Type": "Number"
 		},
 		"EsConfClusterName": {
@@ -348,8 +348,8 @@
 			],
 			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
 			"LaunchConfigurationName" : { "Ref" : "EsSpotDataNodeLc" },
-			"MinSize" : "0",
-			"MaxSize" : "0",
+			"MinSize" : "1",
+			"MaxSize" : "10",
 			"DesiredCapacity" : "0",
 			"Tags" : [{"Key": "Name", "Value" : "Elasticsearch Cluster Spot Data Node", "PropagateAtLaunch" : "True"}]
 		  }
