@@ -1,0 +1,483 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+
+	"Description": "A mesosphere cluster with both on demand and spot instances.",
+
+	"Parameters": {
+		"KeyPairName": {
+			"Description": "Name of an existing EC2 KeyPair to enable SSH access to the instances",
+			"Type": "String"
+		},
+
+		"SlaveInstanceType" : {
+			"Description" : "WebServer EC2 instance type",
+			"Type" : "String",
+			"Default" : "m3.large",
+			"AllowedValues": [
+				"m3.medium",
+				"m3.large",
+				"m3.xlarge",
+				"m3.2xlarge",
+				"r3.large",
+				"r3.xlarge",
+				"r3.2xlarge",
+				"r3.4xlarge",
+				"r3.8xlarge"
+			],
+			"ConstraintDescription" : "must be a valid EC2 instance type."
+		},
+		"MasterInstanceType" : {
+			"Description" : "WebServer EC2 instance type",
+			"Type" : "String",
+			"Default" : "t2.micro",
+			"AllowedValues": [
+				"t2.micro",
+				"t2.small",
+				"t2.medium",
+				"m3.medium",
+				"m3.large",
+				"m3.xlarge",
+				"m3.2xlarge"
+			],
+			"ConstraintDescription" : "must be a valid EC2 instance type."
+		},
+		"EsClusterAmi": {
+			"Description": "AMI to use. Note Ubuntu is prefered.",
+			"Default": "ami-fddabdc7",
+			"Type": "String"
+		},
+		"EsDataDiskSize": {
+			"Description": "Size of the SSD for the elasticsearch to write to.",
+			"Default": "150",
+			"Type": "Number",
+			"MinValue": "50",
+			"MaxValue": "1000"
+		},
+
+		"MesosZkConnString": {
+			"Description": "Zookeeper Connection string. Note zk:// is ommited. Sample valid value: \"10.0.0.0:2181/mesos\".",
+			"Type": "String"
+		},
+
+		"VpcId": {
+			"Description" : "VPCid associated with the subnets. [subnets.parameters.VpcId]",
+			"Type": "String"
+		},
+		"Subnet1Id": {
+			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet1]",
+			"Type": "String"
+		},
+		"Subnet2Id": {
+			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet2]",
+			"Type": "String"
+		},
+		"Subnet3Id": {
+			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet3]",
+			"Type": "String",
+			"Default": ""
+		}
+	},
+
+	"Mappings" : {
+		"InstanceVariables" : {
+			"t2.micro": { "ram" : "450" },
+			"t2.small": { "ram" : "950" },
+			"t2.medium": { "ram" : "1950" },
+			"m3.medium": { "ram" : "1800", "spotprice": "0.02"},
+			"m3.large": { "ram" : "3600", "spotprice": "0.03" },
+			"m3.xlarge": { "ram" : "7000", "spotprice": "0.05" },
+			"m3.2xlarge": { "ram" : "14500", "spotprice": "0.09" },
+			"r3.large": { "ram" : "7500", "spotprice": "0.03" },
+			"r3.xlarge": { "ram" : "15000", "spotprice": "0.05" },
+			"r3.2xlarge": { "ram" : "30000", "spotprice": "0.09" },
+			"r3.4xlarge": { "ram" : "60000", "spotprice": "0.17" },
+			"r3.8xlarge": { "ram" : "12000", "spotprice": "0.4" }
+		}
+	},
+
+	"Resources" : {
+
+		"BaseLc" : {
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Metadata" : {
+				"AWS::CloudFormation::Init" : {
+					"configSets": {
+						"master": [
+							"setup-base",
+							"setup-master"
+						],
+						"slave": [
+							"setup-base",
+							"setup-slave"
+						]
+					},
+					"setup-base" : {
+						"files" : {
+							"/home/local/setup-repo.sh" : {
+								"content" : { "Fn::Join" : ["", [
+									"#!/bin/bash\n",
+									"apt-key adv --keyserver keyserver.ubuntu.com --recv E56151BF\n",
+									"DISTRO=$(lsb_release -is | tr '[:upper:]' '[:lower:]')\n",
+									"CODENAME=$(lsb_release -cs)\n",
+									"echo \"deb http://repos.mesosphere.io/${DISTRO} ${CODENAME} main\" | ",
+										"tee /etc/apt/sources.list.d/mesosphere.list\n",
+									"apt-get -y update"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/home/local/install-base.sh" : {
+								"content" : { "Fn::Join" : ["", [
+									"#!/bin/bash\n",
+									"apt-get install -y mesos\n",
+									"service zookeeper stop\n",
+									"service mesos-master stop\n",
+									"service mesos-slave stop\n",
+									"sh -c \"echo manual > /etc/init/zookeeper.override\"\n",
+									"rm /etc/mesos/zk\n",
+									"echo \"zk://", {"Ref":"MesosZkConnString"}, "\" > /etc/mesos/zk"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							}
+						},
+						"commands" : {
+							"1-mount-gp-ssd": {
+								"command" : "./setup-repo.sh",
+								"cwd" : "/home/local/",
+								"ignoreErrors" : "true"
+							},
+							"2-mount-ephemeral-ssd": {
+								"command" : "./install-base.sh",
+								"cwd" : "/home/local/",
+								"ignoreErrors" : "true"
+							}
+						}
+					},
+					"setup-master" : {
+						"files" : {
+							"/home/local/install-extra.sh" : {
+								"content" : { "Fn::Join" : ["", [
+									"#!/bin/bash\n",
+									"sh -c \"echo manual > /etc/init/mesos-slave.override\"\n",
+									"service mesos-master start\n",
+									"sleep 5\n",
+									"apt-get install marathon\n",
+									"service marathon start\n"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							}
+						},
+						"commands" : {
+							"1-mount-gp-ssd": {
+								"command" : "./install-extra.sh",
+								"cwd" : "/home/local/",
+								"ignoreErrors" : "true"
+							}
+						}
+					},
+					"setup-slave" : {
+						"files" : {
+							"/home/local/install-extra.sh" : {
+								"content" : { "Fn::Join" : ["", [
+									"#!/bin/bash\n",
+									"sh -c \"echo manual > /etc/init/mesos-master.override\"\n",
+									"apt-get install -y docker.io\n",
+									"echo 'docker,mesos' > /etc/mesos-slave/containerizers\n",
+									"echo '5mins' > /etc/mesos-slave/executor_registration_timeout\n",
+									"service mesos-slave start\n"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							}
+						},
+						"commands" : {
+							"1-mount-gp-ssd": {
+								"command" : "./install-extra.sh",
+								"cwd" : "/home/local/",
+								"ignoreErrors" : "true"
+							}
+						}
+					}
+				}
+			},
+			"Properties": {
+				"InstanceType" : { "Ref" : "SlaveInstanceType" },
+				"ImageId" : { "Ref" : "EsClusterAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" }
+			}
+		},
+
+		"SlaveLc" : {
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Properties": {
+				"InstanceType" : { "Ref" : "SlaveInstanceType" },
+				"ImageId" : { "Ref" : "EsClusterAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" },
+				"AssociatePublicIpAddress": "false",
+				"SecurityGroups": [
+					{ "Ref" : "EsClusterNodeSg" }
+				],
+				"IamInstanceProfile": { "Ref" : "MesosInstanceProfile" },
+				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+					"#!/bin/bash\n",
+					"apt-get update\n",
+					"apt-get -y install python-setuptools\n",
+					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r BaseLc -c slave\n"
+				]]}},
+				"BlockDeviceMappings" : [
+					{
+						"DeviceName" : "/dev/sda1",
+						"Ebs" : { "VolumeSize" : "30", "VolumeType" : "gp2" }
+					},
+					{
+						"DeviceName" : "/dev/xvdk",
+						"Ebs" : { "VolumeSize" : {"Ref": "EsDataDiskSize"}, "VolumeType" : "gp2" }
+					}
+				]
+			}
+		},
+		"SlaveAsg" : {
+			"Type" : "AWS::AutoScaling::AutoScalingGroup",
+			"Properties" : {
+				"VPCZoneIdentifier": [
+					{ "Ref" : "Subnet1Id" }
+				],
+				"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
+				"LaunchConfigurationName" : { "Ref" : "SlaveLc" },
+				"MinSize" : "1",
+				"MaxSize" : "20",
+				"DesiredCapacity" : "1",
+				"Tags" : [{"Key": "Name", "Value" : "Mesosphere Slave", "PropagateAtLaunch" : "True"}]
+			}
+		},
+		"SlaveSpotLc" : {
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Properties": {
+				"InstanceType" : { "Ref" : "SlaveInstanceType" },
+				"ImageId" : { "Ref" : "EsClusterAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" },
+				"AssociatePublicIpAddress": "false",
+				"SecurityGroups": [
+					{ "Ref" : "EsClusterNodeSg" }
+				],
+				"IamInstanceProfile": { "Ref" : "MesosInstanceProfile" },
+				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+					"#!/bin/bash\n",
+					"apt-get update\n",
+					"apt-get -y install python-setuptools\n",
+					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r BaseLc -c slave\n"
+				]]}},
+				"BlockDeviceMappings" : [
+					{
+						"DeviceName" : "/dev/sda1",
+						"Ebs" : { "VolumeSize" : "30", "VolumeType" : "gp2" }
+					},
+					{
+						"DeviceName" : "/dev/xvdk",
+						"Ebs" : { "VolumeSize" : {"Ref": "EsDataDiskSize"}, "VolumeType" : "gp2" }
+					}
+				],
+				"SpotPrice": { "Fn::FindInMap": [ "InstanceVariables", { "Ref": "SlaveInstanceType" }, "spotprice" ] }
+			}
+		},
+		"SlaveSpotAsg" : {
+		  "Type" : "AWS::AutoScaling::AutoScalingGroup",
+		  "Properties" : {
+		    "VPCZoneIdentifier": [
+				{ "Ref" : "Subnet1Id" }
+			],
+			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
+			"LaunchConfigurationName" : { "Ref" : "SlaveSpotLc" },
+			"MinSize" : "1",
+			"MaxSize" : "10",
+			"DesiredCapacity" : "1",
+			"Tags" : [{"Key": "Name", "Value" : "Mesosphere Spot Slave", "PropagateAtLaunch" : "True"}]
+		  }
+		},
+
+		"MasterLc" : {
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Properties": {
+				"InstanceType" : { "Ref" : "MasterInstanceType" },
+				"ImageId" : { "Ref" : "EsClusterAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" },
+				"AssociatePublicIpAddress": "true",
+				"SecurityGroups": [
+					{ "Ref" : "EsClusterNodeSg" },
+					{ "Ref" : "EsClusterGatewayNodeSg" }
+				],
+				"IamInstanceProfile": { "Ref" : "MesosInstanceProfile" },
+				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+					"#!/bin/bash\n",
+					"apt-get update\n",
+					"apt-get -y install python-setuptools default-jre\n",
+					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r BaseLc -c master"
+				]]}},
+				"BlockDeviceMappings" : [
+					{
+						"DeviceName" : "/dev/sda1",
+						"Ebs" : { "VolumeSize" : "30", "VolumeType" : "gp2" }
+					}
+				]
+			}
+		},
+		"MasterAsg" : {
+		  "Type" : "AWS::AutoScaling::AutoScalingGroup",
+		  "Properties" : {
+		    "VPCZoneIdentifier": [
+				{ "Ref" : "Subnet1Id" }
+			],
+			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
+			"LaunchConfigurationName" : { "Ref" : "MasterLc" },
+			"MinSize" : "1",
+			"MaxSize" : "4",
+			"DesiredCapacity" : "1",
+			"LoadBalancerNames" : [ { "Ref" : "MasterLoadBalancer" } ],
+			"Tags" : [{"Key": "Name", "Value" : "Mesosphere Master", "PropagateAtLaunch" : "True"}]
+		  }
+		},
+		"MasterLoadBalancer" : {
+			"Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+			"Properties" : {
+				"Subnets": [
+					{ "Ref" : "Subnet1Id" }
+				],
+				"Listeners" : [
+				{
+					"LoadBalancerPort" : "9300",
+					"InstancePort" : "9300",
+					"Protocol" : "TCP"
+				},
+				{
+					"LoadBalancerPort" : "9200",
+					"InstancePort" : "9200",
+					"Protocol" : "HTTP"
+				}],
+				"HealthCheck" : {
+					"Target" : { "Fn::Join" : [ "", ["HTTP:9200/"]]},
+					"HealthyThreshold" : "3",
+					"UnhealthyThreshold" : "5",
+					"Interval" : "30",
+					"Timeout" : "5"
+				},
+				"SecurityGroups": [{ "Ref": "EsElbSg" }],
+				"Scheme": "internal"
+			}
+		},
+
+		"MesosInstanceProfile": {
+			"Type": "AWS::IAM::InstanceProfile",
+			"Properties": {
+				"Path": "/elasticsearch/data/",
+				"Roles": [{ "Ref": "MesosInstanceRole" }]
+			}
+		},
+		"MesosInstanceRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": [ "ec2.amazonaws.com" ]
+							},
+							"Action": [ "sts:AssumeRole" ]
+						}
+					]
+				},
+				"Path": "/elasticsearch/data/",
+				"Policies": [{
+					"PolicyName": "root",
+					"PolicyDocument": {
+						"Version" : "2012-10-17",
+						"Statement": [{
+							"Effect": "Allow",
+							"Action": "EC2:Describe*",
+							"Resource": "*"
+						}]
+					}
+				}]
+			}
+		},
+
+		"EsClusterNodeSg" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" : {
+				"GroupDescription" : "Security group for mesosphere cluster nodes.",
+				"SecurityGroupEgress" : [
+					{ "IpProtocol" : "-1" ,  "CidrIp": "0.0.0.0/0" }
+				],
+				"VpcId" : { "Ref" : "VpcId"},
+				"Tags": [{"Key": "Name", "Value" : "Mesosphere Cluster Nodes"}]
+			}
+		},
+		"EsClusterNodeSgSelfIngress" : {
+			"Type" : "AWS::EC2::SecurityGroupIngress",
+			"Properties" : {
+				"IpProtocol" : "-1",
+				"GroupId" : { "Ref" : "EsClusterNodeSg" },
+				"SourceSecurityGroupId" : { "Ref" : "EsClusterNodeSg" }
+			}
+		},
+
+		"EsClusterGatewayNodeSg" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" : {
+				"GroupDescription" : "Load Balancer targets.",
+				"SecurityGroupIngress" : [
+					{ "IpProtocol": "6", "SourceSecurityGroupId" : { "Ref" : "EsElbSg" }, "FromPort" : "9200", "ToPort" : "9200" }
+				],
+				"VpcId" : { "Ref" : "VpcId"},
+				"Tags": [{"Key": "Name", "Value" : "Es Cluster Gateway Nodes"}]
+			}
+		},
+		"EsClusterGatewayNodeFromEsElbIngress" : {
+			"Type" : "AWS::EC2::SecurityGroupIngress",
+			"Properties" : {
+				"IpProtocol" : "tcp",
+				"ToPort" : "9200",
+				"FromPort" : "9200",
+				"GroupId" : { "Ref" : "EsClusterGatewayNodeSg" },
+				"SourceSecurityGroupId" : { "Ref" : "EsElbSg" }
+			}
+		},
+
+		"EsElbSg" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" : {
+				"GroupDescription" : "Gateway to master nodes of the Elasticsearch Cluster",
+				"VpcId" : { "Ref" : "VpcId"},
+				"Tags": [{"Key": "Name", "Value" : "Es Cluster Load Balancer"}]
+			}
+		},
+		"EsElbToEsClusterGatewayNodeEgress" : {
+			"Type": "AWS::EC2::SecurityGroupEgress",
+			"Properties":{
+				"IpProtocol": "tcp",
+				"FromPort": "9200",
+				"ToPort": "9200",
+				"GroupId": { "Ref" : "EsElbSg" },
+				"DestinationSecurityGroupId": { "Ref" : "EsClusterGatewayNodeSg" }
+			}
+		}
+
+	},
+
+	"Outputs" : {
+		"EsElb" : {
+			"Value" : { "Fn::GetAtt" : ["MasterLoadBalancer", "DNSName"] },
+			"Description" : "Private A record for ES Master Node ELB"
+		}
+	}
+}
