@@ -16,10 +16,10 @@ Get-StackLinkParameters -TemplateUrl "$($prefix)basic-blocks/internet-access.sub
     Upsert-StackLink -Tags $tags -StackName Prod-GatewaySubnets |
     Wait-StackLink
 
-Get-StackLinkParameters -TemplateUrl "$($prefix)basic-blocks/private.subnets.template" |
-    Upsert-StackLink -Tags $tags -StackName Prod-PrivateSubnets |
+Get-StackLinkParameters -TemplateUrl "$($prefix)basic-blocks/webserver.subnets.template" |
+    Upsert-StackLink -Tags $tags -StackName Prod-WebServerSubnets |
     Wait-StackLink
 
-Get-StackLinkParameters -TemplateUrl "$($prefix)basic-blocks/nat-enabled.subnets.template" |
-    Upsert-StackLink -Tags $tags -StackName Prod-NatSubnets |
+Get-StackLinkParameters -TemplateUrl "$($prefix)basic-blocks/private.subnets.template" |
+    Upsert-StackLink -Tags $tags -StackName Prod-PrivateSubnets |
     Wait-StackLink

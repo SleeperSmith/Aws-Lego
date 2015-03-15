@@ -42,6 +42,17 @@
 			"Description" : "Comma-delimited list of three IP blocks",
 			"Type" : "CommaDelimitedList",
 			"Default" : ""
+		},
+
+		"KeyPairName": {
+			"Description": "Name of an existing EC2 KeyPair to enable SSH access to the instances",
+			"Type": "String"
+		},
+		
+		"NatImageId" : {
+			"Description" : "NAT image id.",
+			"Type" : "String",
+			"Default" : "ami-893f53b3"
 		}
 
 	},
@@ -142,11 +153,52 @@
 			}
 		},
 
+		"NatServer" : {
+			"Type" : "AWS::EC2::Instance",
+			"Properties" : {
+				"DisableApiTermination" : "true",
+				"ImageId" : {"Ref": "NatImageId"},
+				"InstanceType" : "t2.micro",
+				"KeyName" : {"Ref": "KeyPairName"},
+				"SecurityGroupIds" : [],
+				"SourceDestCheck" : "false",
+				"SubnetId" : {"Ref": "Subnet1"},
+				"Tags" : [{"Key" : "Name", "Value" : "NAT"}]
+			}
+		},
+		"NatSecurityGroup" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" :
+			{
+				"GroupDescription" : "NAT sec group. Allow all inbound from vpc, and all outbound traffic.",
+				"SecurityGroupEgress" : [{
+					"IpProtocol" : "-1",
+					"CidrIp" : "0.0.0.0/0"
+				}],
+				"SecurityGroupIngress" : [{
+					"IpProtocol" : "-1",
+					"CidrIp" : { "Fn::Join" : [ "", [
+						{ "Ref" : "VpcPrefix" }, ".0.0/16"
+					]]}
+				}],
+				"Tags" : [{ "Key" : "Name", "Value" : "NAT" }],
+				"VpcId" : { "Ref": "VpcId" }
+			}
+		},
+
 		"RouteTable" : {
 			"Type" : "AWS::EC2::RouteTable",
 			"Properties" : {
 				"VpcId" : {"Ref": "VpcId"},
 				"Tags" : []
+			}
+		},
+		"PublicRoute" : {
+			"Type" : "AWS::EC2::Route",
+			"Properties" : {
+				"RouteTableId" : { "Ref" : "RouteTable" },
+				"DestinationCidrBlock" : "0.0.0.0/0",
+				"InstanceId" : { "Ref" : "NatServer" }
 			}
 		},
 		"Acl" : {
