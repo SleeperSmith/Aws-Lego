@@ -13,7 +13,7 @@
 .".\Deployment.ps1"
 
 $password = $([Guid]::NewGuid().ToString())
-Write-Host "Your phabricator password is: $password" -ForegroundColor Yellow
+Write-Host "Your phabricator mysql password is: $password" -ForegroundColor Yellow
 
 Get-StackLinkParameters -TemplateUrl "$($prefix)special-blocks/phabricator.template" -StackParameters @(
     @{"Key" = "KeyPairName"; "Value" = $kp},
