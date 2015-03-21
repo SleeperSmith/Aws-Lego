@@ -26,6 +26,8 @@ As for
 Getting Started
 ==============
 
+One of the most common task of a starting dev team is 1) source control and 2) build server. Let's try deploy a complete VPC with both a Phabricator and a Jenkins installation.
+
 <h4>Prerequisite</h4>
 Install AWS .Net SDK and have access to PowerShell  
 From PowerShell:  
@@ -46,5 +48,8 @@ Open Powershell ISE (or just Powershell) and run New-CompleteReferenceTopology.p
 You will be prompted for required details.
 
 <h4>Deploy Phabricator</h4>
-<h4>Deploy ElasticSearch</h4>
+Download and run:  
+https://s3-ap-southeast-2.amazonaws.com/bc-public-releases/AWS-Lego/Alpha/New-Phabricator.ps1  
 
+<h4>Deploy Jenkins</h4>
+(to come.)
