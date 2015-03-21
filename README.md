@@ -23,22 +23,28 @@ With an all encompassing deployment topology, software vendors would then be abl
 As for 
 
 
-Example usages
+Getting Started
 ==============
 
-Set-AWSCredentials -AccessKey &lt;key&gt; -SecretKey &lt;secret&gt;  
-Set-DefaultAWSRegion -Region &lt;region&gt;  
-<sub>(Please note there are currently some issues with us-east-1 due to the possible skipping of AZ returned from [Fn::GetAZs](http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-getavailabilityzones.html)</sub>
+<h4>Prerequisite</h4>
+Install AWS .Net SDK and have access to PowerShell  
+From PowerShell:  
+```
+Set-AWSCredentials -AccessKey <key> -SecretKey <secret>  
+Set-DefaultAWSRegion -Region <region>  
+```
 
+<h4>Deploy Reference Topology</h4>
 Setting up a VPC with public subnets, private subnets, and NAT (And all associated firewall and routing rules.) Then set up Phabricator, Jenkins  
 Download:  
 https://s3-ap-southeast-2.amazonaws.com/bc-public-releases/AWS-Lego/Alpha/Deployment.ps1  
-https://s3-ap-southeast-2.amazonaws.com/bc-public-releases/AWS-Lego/Alpha/Create-CompleteReferenceTopology.ps1
+https://s3-ap-southeast-2.amazonaws.com/bc-public-releases/AWS-Lego/Alpha/New-CompleteReferenceTopology.ps1  
+<sub>(Please note there are currently some issues with us-east-1 due to the possible skipping of AZ returned from [Fn::GetAZs](http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-getavailabilityzones.html)</sub>
 
-Open Powershell ISE (or just Powershell) and run Create-CompleteReferenceTopology.ps1
+Open Powershell ISE (or just Powershell) and run New-CompleteReferenceTopology.ps1
 
 You will be prompted for required details.
 
+<h4>Deploy Phabricator</h4>
+<h4>Deploy ElasticSearch</h4>
 
-<h3>Chef? Puppet?</h3>
-May be supported later. AWS Launch Configuration has been chosen first as it allows the a
