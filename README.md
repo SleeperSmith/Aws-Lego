@@ -11,7 +11,7 @@ A set of templates designed to unify common AWS deployment topology. The common 
 - Integligence and Analytics; AWS log collection, Elasticsearch, Logstash<sub>1</sub> and Kibana<sub>1</sub>
 - Middle Ware and Support; Zookeeper, Kafka<sub>1</sub>
 
-<sub>1 Denotes sork in progress</sub>  
+<sub>1 Denotes work in progress</sub>  
 Also others to come later:
 - Clustering and Orchestration of Docker deployment; Mesospohere + HAProxy + Kubernetes
 - A unified monitoring, alerting, reporting and anlytics topology across Windows and Linux. Encompassing all web servers, applications and runtimes; Apache, Nginx, Windows and all the listed software packages and nodejs, java, .net, etc etc.
