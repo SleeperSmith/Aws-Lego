@@ -1,12 +1,14 @@
 ﻿param(
-    $prefix = "https://s3-ap-southeast-2.amazonaws.com/bc-public-releases/AWS-Lego/Alpha/"
+    $prefix = "https://s3-ap-southeast-2.amazonaws.com/bc-public-releases/AWS-Lego/Alpha/",
+    $natkp = (Read-Host 'Name of Key Pair to user for NAT server instance access'),
+    $natAmi = (Read-Host 'AMI ID of NAT'),
+    $tags = @(
+        @{"Key" = "Project"; "Value" = "Infrastructure"},
+        @{"Key" = "Environment"; "Value" = "Prod"}
+    )
 )
 
 .".\Deployment.ps1"
-$tags = @(
-    @{"Key" = "Project"; "Value" = "Infrastructure"},
-    @{"Key" = "Environment"; "Value" = "Prod"}
-)
 
 Get-StackLinkParameters -TemplateUrl "$($prefix)basic-blocks/vpc.template" |
     Upsert-StackLink -Tags $tags -StackName Prod-PrimaryVpc |
@@ -25,7 +27,8 @@ Get-StackLinkParameters -TemplateUrl "$($prefix)basic-blocks/private.subnets.tem
     Wait-StackLink
 
 Get-StackLinkParameters -TemplateUrl "$($prefix)basic-blocks/nat-enabled.subnets.template" -StackParameters @(
-    @{"Key" = "KeyPairName"; "Value" = "none-prod"} # name of Key Pair to user for NAT server instance access
+    @{"Key" = "KeyPairName"; "Value" = $natkp},
+    @{"Key" = "NatImageId"; "Value" = $natAmi}
 ) | Upsert-StackLink -Tags $tags -StackName Prod-NatSubnets |
     Wait-StackLink
 

@@ -4,6 +4,10 @@
 	"Description" : "General purpose subnets twith a route table having the public route mapped through a NAT.",
 
 	"Parameters" : {
+		"NatServerSubnet" : {
+			"Description" : "Subnet suffix to be concatenated with the VPC prefix. [internet-access.resources.Subnet1]",
+			"Type" : "String"
+		},
 
 		"Subnet1Suffix" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. ",
@@ -51,8 +55,7 @@
 		
 		"NatImageId" : {
 			"Description" : "NAT image id.",
-			"Type" : "String",
-			"Default" : "ami-893f53b3"
+			"Type" : "String"
 		}
 
 	},
@@ -160,10 +163,15 @@
 				"ImageId" : {"Ref": "NatImageId"},
 				"InstanceType" : "t2.micro",
 				"KeyName" : {"Ref": "KeyPairName"},
-				"SecurityGroupIds" : [],
 				"SourceDestCheck" : "false",
-				"SubnetId" : {"Ref": "Subnet1"},
-				"Tags" : [{"Key" : "Name", "Value" : "NAT"}]
+				"Tags" : [{"Key" : "Name", "Value" : "NAT"}],
+				"NetworkInterfaces" : [{
+					"AssociatePublicIpAddress" : "true",
+					"DeleteOnTermination" : "true",
+					"GroupSet" : [{"Ref":"NatSecurityGroup"}],
+					"SubnetId" : {"Ref": "NatServerSubnet"},
+					"DeviceIndex" : "0"
+				}]
 			}
 		},
 		"NatSecurityGroup" : {

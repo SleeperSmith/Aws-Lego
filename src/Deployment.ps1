@@ -98,6 +98,13 @@ function Get-StackLinkParameters {
         $matchedParams = $StackParameters | ? {
             $_.Key -eq $cfnParameter.ParameterKey
         }
+
+        if ($cfnParameter.ParameterKey -eq "AvailableAzs") {
+            $azs = Get-EC2AvailabilityZone | % { $_.ZoneName }
+            $azString = [string]::Join(",", $azs)
+            $StackParameters += @{"Key" = "AvailableAzs"; "Value" = $azString}
+        }
+
         if ($matchedParams.count -gt 0) {
             continue
         }
@@ -155,6 +162,8 @@ function Get-StackLinkParameters {
         }
 
     }
+
+    
 
     $StackParameters | % {
         Write-Host ">" $_["Key"]: $_["Value"]
