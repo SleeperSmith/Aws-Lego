@@ -20,9 +20,6 @@ Also others to come later:
 
 With an all encompassing deployment topology, software vendors would then be able to create step by step walk through of deployment scenarios that map precisely to topologies that choose to dopt AWS-Lego.
 
-As for 
-
-
 Getting Started
 ==============
 
