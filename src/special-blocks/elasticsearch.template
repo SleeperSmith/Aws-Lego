@@ -405,7 +405,7 @@
 				"InstanceType" : { "Ref" : "MasterNodeInstanceType" },
 				"ImageId" : { "Ref" : "EsClusterAmi" },
 				"KeyName" : { "Ref" : "KeyPairName" },
-				"AssociatePublicIpAddress": "true",
+				"AssociatePublicIpAddress": "false",
 				"SecurityGroups": [
 					{ "Ref" : "EsClusterNodeSg" },
 					{ "Ref" : "EsClusterGatewayNodeSg" }

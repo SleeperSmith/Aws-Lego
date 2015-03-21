@@ -90,7 +90,6 @@
 		},
 		"UbuntuAmi": {
 			"Description": "AMI to use. Note Ubuntu is prefered.",
-			"Default": "ami-fddabdc7",
 			"Type": "String"
 		},
 		"Subnet1Id": {
@@ -317,7 +316,7 @@
 				"ImageId" : { "Ref" : "UbuntuAmi" },
 				"NetworkInterfaces" : [
 				{
-					"AssociatePublicIpAddress" : "true",
+					"AssociatePublicIpAddress" : "false",
 					"SubnetId" : { "Ref": "Subnet1Id" },
 					"DeviceIndex" : "0",
 					"GroupSet" : [
