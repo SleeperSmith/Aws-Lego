@@ -8,7 +8,7 @@ A set of templates designed to unify common AWS deployment topology. The common 
 - Database with isolated subnets.
 - Source Control; using Phabricator
 - Continuous Integration; using Jenkins<sub>1</sub> and Go.CD<sub>1</sub>
-- Integligence and Analytics; AWS log collection, Elasticsearch, Logstash<sub>1</sub> and Kibana<sub>1</sub>
+- Intelligence and Analytics; AWS log collection, Elasticsearch, Logstash<sub>1</sub> and Kibana<sub>1</sub>
 - Middle Ware and Support; Zookeeper, Kafka<sub>1</sub>
 
 <sub>1 Denotes work in progress</sub>  
