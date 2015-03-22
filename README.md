@@ -49,4 +49,5 @@ Download and run:
 https://s3-ap-southeast-2.amazonaws.com/bc-public-releases/AWS-Lego/Alpha/New-Phabricator.ps1  
 
 <h4>Deploy Jenkins</h4>
-(to come.)
+Download and run:  
+https://s3-ap-southeast-2.amazonaws.com/bc-public-releases/AWS-Lego/Alpha/New-Jenkins.ps1  
