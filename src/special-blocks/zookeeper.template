@@ -134,7 +134,8 @@
 									"    ulimit -n 40000\n",
 									"    export ES_HEAP_SIZE=",{ "Fn::FindInMap": [ "InstanceVariables", { "Ref": "MasterNodeInstanceType" }, "ram" ] },"m\n",
 									"    java -jar /home/local/exhibitor/target/exhibitor-1.5.3.jar -c s3 ",
-										"--s3config ",{"Ref":"ConfigBucketName"},":exhibitor-zk.config --s3region ",{"Ref":"AWS::Region"},"\n",
+										"--s3config ",{"Ref":"ConfigBucketName"},":exhibitor-zk.config --s3region ",{"Ref":"AWS::Region"}," ",
+										"--defaultconfig /home/local/exhibitor/exhibitor-defaults.properties\n",
 									"end script\n",
 									"respawn limit 3 60"
 								]]},
@@ -145,10 +146,24 @@
 							"/home/local/zookeeper/bin/setup-zookeeper.sh" : {
 								"content" : { "Fn::Join" : ["", [
 									"#!/bin/bash\n",
+									"mkdir ../data\n",
+									"mkdir ../log\n",
 									"wget ",{"Ref":"ZookeeperJarUrl"},{"Ref":"ZookeeperJarFileName"},"\n",
 									"tar zxvf ",{"Ref":"ZookeeperJarFileName"},"\n",
 									"cp ./zookeeper-3.4.6/conf/zoo_sample.cfg ./zookeeper-3.4.6/conf/zoo.cfg\n",
 									"./zookeeper-3.4.6/bin/zkServer.sh start\n"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/home/local/exhibitor/exhibitor-defaults.properties" : {
+								"content" : { "Fn::Join" : ["", [
+									"zookeeper-install-directory=/home/local/zookeeper/bin/*\n",
+									"zookeeper-data-directory=/home/local/zookeeper/data\n",
+									"zookeeper-log-directory=/home/local/zookeeper/log\n",
+									"auto-manage-instances=1\n",
+									"auto-manage-instances-apply-all-at-once=0"
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
@@ -204,9 +219,9 @@
 			],
 			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
 			"LaunchConfigurationName" : { "Ref" : "ZkNodeLc" },
-			"MinSize" : "1",
+			"MinSize" : "3",
 			"MaxSize" : "5",
-			"DesiredCapacity" : "1",
+			"DesiredCapacity" : "3",
 			"LoadBalancerNames" : [ { "Ref" : "ZkAccessPoint" } ],
 			"Tags" : [{"Key": "Name", "Value" : "Zookeeper Node", "PropagateAtLaunch" : "True"}]
 		  }
@@ -305,7 +320,7 @@
 					{ "IpProtocol": "6", "SourceSecurityGroupId" : { "Ref" : "ZkElbSg" }, "FromPort" : "2181", "ToPort" : "2181" }
 				],
 				"VpcId" : { "Ref" : "VpcId"},
-				"Tags": [{"Key": "Name", "Value" : "Es Cluster Gateway Nodes"}]
+				"Tags": [{"Key": "Name", "Value" : "Zookeeper Cluster"}]
 			}
 		},
 		"ZkNodeSelfIngressFollow" : {
