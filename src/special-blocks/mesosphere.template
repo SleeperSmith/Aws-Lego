@@ -41,13 +41,13 @@
 			],
 			"ConstraintDescription" : "must be a valid EC2 instance type."
 		},
-		"EsClusterAmi": {
+		"ClusterAmi": {
 			"Description": "AMI to use. Note Ubuntu is prefered.",
 			"Default": "ami-fddabdc7",
 			"Type": "String"
 		},
 		"EsDataDiskSize": {
-			"Description": "Size of the SSD for the elasticsearch to write to.",
+			"Description": "Size of the SSD for the slaves to use.",
 			"Default": "150",
 			"Type": "Number",
 			"MinValue": "50",
@@ -97,7 +97,7 @@
 
 	"Resources" : {
 
-		"BaseLc" : {
+		"MasterLc" : {
 			"Type" : "AWS::AutoScaling::LaunchConfiguration",
 			"Metadata" : {
 				"AWS::CloudFormation::Init" : {
@@ -207,21 +207,55 @@
 				}
 			},
 			"Properties": {
-				"InstanceType" : { "Ref" : "SlaveInstanceType" },
-				"ImageId" : { "Ref" : "EsClusterAmi" },
-				"KeyName" : { "Ref" : "KeyPairName" }
+				"InstanceType" : { "Ref" : "MasterInstanceType" },
+				"ImageId" : { "Ref" : "ClusterAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" },
+				"AssociatePublicIpAddress": "true",
+				"SecurityGroups": [
+					{ "Ref" : "ClusterNodeSg" },
+					{ "Ref" : "ClusterGatewayNodeSg" }
+				],
+				"IamInstanceProfile": { "Ref" : "MesosInstanceProfile" },
+				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+					"#!/bin/bash\n",
+					"apt-get update\n",
+					"apt-get -y install python-setuptools default-jre\n",
+					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r MasterLc -c master"
+				]]}},
+				"BlockDeviceMappings" : [
+					{
+						"DeviceName" : "/dev/sda1",
+						"Ebs" : { "VolumeSize" : "30", "VolumeType" : "gp2" }
+					}
+				]
 			}
+		},
+		"MasterAsg" : {
+		  "Type" : "AWS::AutoScaling::AutoScalingGroup",
+		  "Properties" : {
+		    "VPCZoneIdentifier": [
+				{ "Ref" : "Subnet1Id" }
+			],
+			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
+			"LaunchConfigurationName" : { "Ref" : "MasterLc" },
+			"MinSize" : "1",
+			"MaxSize" : "4",
+			"DesiredCapacity" : "1",
+			"LoadBalancerNames" : [ { "Ref" : "MasterLoadBalancer" } ],
+			"Tags" : [{"Key": "Name", "Value" : "Mesosphere Master", "PropagateAtLaunch" : "True"}]
+		  }
 		},
 
 		"SlaveLc" : {
 			"Type" : "AWS::AutoScaling::LaunchConfiguration",
 			"Properties": {
 				"InstanceType" : { "Ref" : "SlaveInstanceType" },
-				"ImageId" : { "Ref" : "EsClusterAmi" },
+				"ImageId" : { "Ref" : "ClusterAmi" },
 				"KeyName" : { "Ref" : "KeyPairName" },
 				"AssociatePublicIpAddress": "false",
 				"SecurityGroups": [
-					{ "Ref" : "EsClusterNodeSg" }
+					{ "Ref" : "ClusterNodeSg" }
 				],
 				"IamInstanceProfile": { "Ref" : "MesosInstanceProfile" },
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
@@ -229,7 +263,7 @@
 					"apt-get update\n",
 					"apt-get -y install python-setuptools\n",
 					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
-					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r BaseLc -c slave\n"
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r MasterLc -c slave\n"
 				]]}},
 				"BlockDeviceMappings" : [
 					{
@@ -261,11 +295,11 @@
 			"Type" : "AWS::AutoScaling::LaunchConfiguration",
 			"Properties": {
 				"InstanceType" : { "Ref" : "SlaveInstanceType" },
-				"ImageId" : { "Ref" : "EsClusterAmi" },
+				"ImageId" : { "Ref" : "ClusterAmi" },
 				"KeyName" : { "Ref" : "KeyPairName" },
 				"AssociatePublicIpAddress": "false",
 				"SecurityGroups": [
-					{ "Ref" : "EsClusterNodeSg" }
+					{ "Ref" : "ClusterNodeSg" }
 				],
 				"IamInstanceProfile": { "Ref" : "MesosInstanceProfile" },
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
@@ -273,7 +307,7 @@
 					"apt-get update\n",
 					"apt-get -y install python-setuptools\n",
 					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
-					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r BaseLc -c slave\n"
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r MasterLc -c slave\n"
 				]]}},
 				"BlockDeviceMappings" : [
 					{
@@ -303,48 +337,6 @@
 		  }
 		},
 
-		"MasterLc" : {
-			"Type" : "AWS::AutoScaling::LaunchConfiguration",
-			"Properties": {
-				"InstanceType" : { "Ref" : "MasterInstanceType" },
-				"ImageId" : { "Ref" : "EsClusterAmi" },
-				"KeyName" : { "Ref" : "KeyPairName" },
-				"AssociatePublicIpAddress": "true",
-				"SecurityGroups": [
-					{ "Ref" : "EsClusterNodeSg" },
-					{ "Ref" : "EsClusterGatewayNodeSg" }
-				],
-				"IamInstanceProfile": { "Ref" : "MesosInstanceProfile" },
-				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
-					"#!/bin/bash\n",
-					"apt-get update\n",
-					"apt-get -y install python-setuptools default-jre\n",
-					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
-					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r BaseLc -c master"
-				]]}},
-				"BlockDeviceMappings" : [
-					{
-						"DeviceName" : "/dev/sda1",
-						"Ebs" : { "VolumeSize" : "30", "VolumeType" : "gp2" }
-					}
-				]
-			}
-		},
-		"MasterAsg" : {
-		  "Type" : "AWS::AutoScaling::AutoScalingGroup",
-		  "Properties" : {
-		    "VPCZoneIdentifier": [
-				{ "Ref" : "Subnet1Id" }
-			],
-			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
-			"LaunchConfigurationName" : { "Ref" : "MasterLc" },
-			"MinSize" : "1",
-			"MaxSize" : "4",
-			"DesiredCapacity" : "1",
-			"LoadBalancerNames" : [ { "Ref" : "MasterLoadBalancer" } ],
-			"Tags" : [{"Key": "Name", "Value" : "Mesosphere Master", "PropagateAtLaunch" : "True"}]
-		  }
-		},
 		"MasterLoadBalancer" : {
 			"Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
 			"Properties" : {
@@ -369,7 +361,7 @@
 					"Interval" : "30",
 					"Timeout" : "5"
 				},
-				"SecurityGroups": [{ "Ref": "EsElbSg" }],
+				"SecurityGroups": [{ "Ref": "ElbSg" }],
 				"Scheme": "internal"
 			}
 		},
@@ -411,40 +403,43 @@
 			}
 		},
 
-		"EsClusterNodeSg" : {
+		"ClusterNodeSg" : {
 			"Type" : "AWS::EC2::SecurityGroup",
 			"Properties" : {
 				"GroupDescription" : "Security group for mesosphere cluster nodes.",
 				"SecurityGroupEgress" : [
 					{ "IpProtocol" : "-1" ,  "CidrIp": "0.0.0.0/0" }
 				],
+				"SecurityGroupIngress" : [
+					{ "IpProtocol" : "6" ,  "CidrIp": "0.0.0.0/0", "FromPort" : "5050", "ToPort" : "5050" }
+				],
 				"VpcId" : { "Ref" : "VpcId"},
 				"Tags": [{"Key": "Name", "Value" : "Mesosphere Cluster Nodes"}]
 			}
 		},
-		"EsClusterNodeSgSelfIngress" : {
+		"ClusterNodeSgSelfIngress" : {
 			"Type" : "AWS::EC2::SecurityGroupIngress",
 			"Properties" : {
 				"IpProtocol" : "-1",
-				"GroupId" : { "Ref" : "EsClusterNodeSg" },
-				"SourceSecurityGroupId" : { "Ref" : "EsClusterNodeSg" }
+				"GroupId" : { "Ref" : "ClusterNodeSg" },
+				"SourceSecurityGroupId" : { "Ref" : "ClusterNodeSg" }
 			}
 		},
 
-		"EsClusterGatewayNodeSg" : {
+		"ClusterGatewayNodeSg" : {
 			"Type" : "AWS::EC2::SecurityGroup",
 			"Properties" : {
 				"GroupDescription" : "Load Balancer targets.",
 				"SecurityGroupIngress" : [
-					{ "IpProtocol": "6", "SourceSecurityGroupId" : { "Ref" : "EsElbSg" }, "FromPort" : "5050", "ToPort" : "5050" },
-					{ "IpProtocol": "6", "SourceSecurityGroupId" : { "Ref" : "EsElbSg" }, "FromPort" : "8080", "ToPort" : "8080" }
+					{ "IpProtocol": "6", "SourceSecurityGroupId" : { "Ref" : "ElbSg" }, "FromPort" : "5050", "ToPort" : "5050" },
+					{ "IpProtocol": "6", "SourceSecurityGroupId" : { "Ref" : "ElbSg" }, "FromPort" : "8080", "ToPort" : "8080" }
 				],
 				"VpcId" : { "Ref" : "VpcId"},
 				"Tags": [{"Key": "Name", "Value" : "Es Cluster Gateway Nodes"}]
 			}
 		},
 
-		"EsElbSg" : {
+		"ElbSg" : {
 			"Type" : "AWS::EC2::SecurityGroup",
 			"Properties" : {
 				"GroupDescription" : "Gateway to master nodes of the Elasticsearch Cluster",
@@ -452,33 +447,33 @@
 				"Tags": [{"Key": "Name", "Value" : "Es Cluster Load Balancer"}]
 			}
 		},
-		"EsElbToEsClusterGatewayNodeEgressMesos" : {
+		"ElbToEsClusterGatewayNodeEgressMesos" : {
 			"Type": "AWS::EC2::SecurityGroupEgress",
 			"Properties":{
 				"IpProtocol": "tcp",
 				"FromPort": "5050",
 				"ToPort": "5050",
-				"GroupId": { "Ref" : "EsElbSg" },
-				"DestinationSecurityGroupId": { "Ref" : "EsClusterGatewayNodeSg" }
+				"GroupId": { "Ref" : "ElbSg" },
+				"DestinationSecurityGroupId": { "Ref" : "ClusterGatewayNodeSg" }
 			}
 		},
-		"EsElbToEsClusterGatewayNodeEgressMarathon" : {
+		"ElbToEsClusterGatewayNodeEgressMarathon" : {
 			"Type": "AWS::EC2::SecurityGroupEgress",
 			"Properties":{
 				"IpProtocol": "tcp",
 				"FromPort": "8080",
 				"ToPort": "8080",
-				"GroupId": { "Ref" : "EsElbSg" },
-				"DestinationSecurityGroupId": { "Ref" : "EsClusterGatewayNodeSg" }
+				"GroupId": { "Ref" : "ElbSg" },
+				"DestinationSecurityGroupId": { "Ref" : "ClusterGatewayNodeSg" }
 			}
 		}
 
 	},
 
 	"Outputs" : {
-		"EsElb" : {
+		"AccessPoint" : {
 			"Value" : { "Fn::GetAtt" : ["MasterLoadBalancer", "DNSName"] },
-			"Description" : "Private A record for ES Master Node ELB"
+			"Description" : "Private A record for Master Nodes ELB"
 		}
 	}
 }
