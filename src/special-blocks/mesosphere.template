@@ -353,17 +353,17 @@
 				],
 				"Listeners" : [
 				{
-					"LoadBalancerPort" : "9300",
-					"InstancePort" : "9300",
-					"Protocol" : "TCP"
+					"LoadBalancerPort" : "8080",
+					"InstancePort" : "8080",
+					"Protocol" : "HTTP"
 				},
 				{
-					"LoadBalancerPort" : "9200",
-					"InstancePort" : "9200",
+					"LoadBalancerPort" : "5050",
+					"InstancePort" : "5050",
 					"Protocol" : "HTTP"
 				}],
 				"HealthCheck" : {
-					"Target" : { "Fn::Join" : [ "", ["HTTP:9200/"]]},
+					"Target" : { "Fn::Join" : [ "", ["HTTP:5050/"]]},
 					"HealthyThreshold" : "3",
 					"UnhealthyThreshold" : "5",
 					"Interval" : "30",
@@ -436,20 +436,11 @@
 			"Properties" : {
 				"GroupDescription" : "Load Balancer targets.",
 				"SecurityGroupIngress" : [
-					{ "IpProtocol": "6", "SourceSecurityGroupId" : { "Ref" : "EsElbSg" }, "FromPort" : "9200", "ToPort" : "9200" }
+					{ "IpProtocol": "6", "SourceSecurityGroupId" : { "Ref" : "EsElbSg" }, "FromPort" : "5050", "ToPort" : "5050" },
+					{ "IpProtocol": "6", "SourceSecurityGroupId" : { "Ref" : "EsElbSg" }, "FromPort" : "8080", "ToPort" : "8080" }
 				],
 				"VpcId" : { "Ref" : "VpcId"},
 				"Tags": [{"Key": "Name", "Value" : "Es Cluster Gateway Nodes"}]
-			}
-		},
-		"EsClusterGatewayNodeFromEsElbIngress" : {
-			"Type" : "AWS::EC2::SecurityGroupIngress",
-			"Properties" : {
-				"IpProtocol" : "tcp",
-				"ToPort" : "9200",
-				"FromPort" : "9200",
-				"GroupId" : { "Ref" : "EsClusterGatewayNodeSg" },
-				"SourceSecurityGroupId" : { "Ref" : "EsElbSg" }
 			}
 		},
 
@@ -461,12 +452,22 @@
 				"Tags": [{"Key": "Name", "Value" : "Es Cluster Load Balancer"}]
 			}
 		},
-		"EsElbToEsClusterGatewayNodeEgress" : {
+		"EsElbToEsClusterGatewayNodeEgressMesos" : {
 			"Type": "AWS::EC2::SecurityGroupEgress",
 			"Properties":{
 				"IpProtocol": "tcp",
-				"FromPort": "9200",
-				"ToPort": "9200",
+				"FromPort": "5050",
+				"ToPort": "5050",
+				"GroupId": { "Ref" : "EsElbSg" },
+				"DestinationSecurityGroupId": { "Ref" : "EsClusterGatewayNodeSg" }
+			}
+		},
+		"EsElbToEsClusterGatewayNodeEgressMarathon" : {
+			"Type": "AWS::EC2::SecurityGroupEgress",
+			"Properties":{
+				"IpProtocol": "tcp",
+				"FromPort": "8080",
+				"ToPort": "8080",
 				"GroupId": { "Ref" : "EsElbSg" },
 				"DestinationSecurityGroupId": { "Ref" : "EsClusterGatewayNodeSg" }
 			}
