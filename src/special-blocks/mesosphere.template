@@ -1,7 +1,7 @@
 {
 	"AWSTemplateFormatVersion": "2010-09-09",
 
-	"Description": "A mesosphere cluster with both on demand and spot instances.",
+	"Description": "A mesos cluster with both on demand and spot instances.",
 
 	"Parameters": {
 		"KeyPairName": {
@@ -46,7 +46,7 @@
 			"Default": "ami-fddabdc7",
 			"Type": "String"
 		},
-		"EsDataDiskSize": {
+		"DataDiskSize": {
 			"Description": "Size of the SSD for the slaves to use.",
 			"Default": "150",
 			"Type": "Number",
@@ -243,7 +243,7 @@
 			"MaxSize" : "4",
 			"DesiredCapacity" : "1",
 			"LoadBalancerNames" : [ { "Ref" : "MasterLoadBalancer" } ],
-			"Tags" : [{"Key": "Name", "Value" : "Mesosphere Master", "PropagateAtLaunch" : "True"}]
+			"Tags" : [{"Key": "Name", "Value" : "Mesos Master", "PropagateAtLaunch" : "True"}]
 		  }
 		},
 
@@ -272,7 +272,7 @@
 					},
 					{
 						"DeviceName" : "/dev/xvdk",
-						"Ebs" : { "VolumeSize" : {"Ref": "EsDataDiskSize"}, "VolumeType" : "gp2" }
+						"Ebs" : { "VolumeSize" : {"Ref": "DataDiskSize"}, "VolumeType" : "gp2" }
 					}
 				]
 			}
@@ -288,7 +288,7 @@
 				"MinSize" : "1",
 				"MaxSize" : "20",
 				"DesiredCapacity" : "1",
-				"Tags" : [{"Key": "Name", "Value" : "Mesosphere Slave", "PropagateAtLaunch" : "True"}]
+				"Tags" : [{"Key": "Name", "Value" : "Mesos Slave", "PropagateAtLaunch" : "True"}]
 			}
 		},
 		"SlaveSpotLc" : {
@@ -316,25 +316,25 @@
 					},
 					{
 						"DeviceName" : "/dev/xvdk",
-						"Ebs" : { "VolumeSize" : {"Ref": "EsDataDiskSize"}, "VolumeType" : "gp2" }
+						"Ebs" : { "VolumeSize" : {"Ref": "DataDiskSize"}, "VolumeType" : "gp2" }
 					}
 				],
 				"SpotPrice": { "Fn::FindInMap": [ "InstanceVariables", { "Ref": "SlaveInstanceType" }, "spotprice" ] }
 			}
 		},
 		"SlaveSpotAsg" : {
-		  "Type" : "AWS::AutoScaling::AutoScalingGroup",
-		  "Properties" : {
-		    "VPCZoneIdentifier": [
-				{ "Ref" : "Subnet1Id" }
-			],
-			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
-			"LaunchConfigurationName" : { "Ref" : "SlaveSpotLc" },
-			"MinSize" : "1",
-			"MaxSize" : "10",
-			"DesiredCapacity" : "1",
-			"Tags" : [{"Key": "Name", "Value" : "Mesosphere Spot Slave", "PropagateAtLaunch" : "True"}]
-		  }
+			"Type" : "AWS::AutoScaling::AutoScalingGroup",
+			"Properties" : {
+				"VPCZoneIdentifier": [
+					{ "Ref" : "Subnet1Id" }
+				],
+				"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
+				"LaunchConfigurationName" : { "Ref" : "SlaveSpotLc" },
+				"MinSize" : "1",
+				"MaxSize" : "10",
+				"DesiredCapacity" : "1",
+				"Tags" : [{"Key": "Name", "Value" : "Mesos Spot Slave", "PropagateAtLaunch" : "True"}]
+			}
 		},
 
 		"MasterLoadBalancer" : {
@@ -369,7 +369,7 @@
 		"MesosInstanceProfile": {
 			"Type": "AWS::IAM::InstanceProfile",
 			"Properties": {
-				"Path": "/elasticsearch/data/",
+				"Path": "/mesos/data/",
 				"Roles": [{ "Ref": "MesosInstanceRole" }]
 			}
 		},
@@ -388,7 +388,7 @@
 						}
 					]
 				},
-				"Path": "/elasticsearch/data/",
+				"Path": "/mesos/data/",
 				"Policies": [{
 					"PolicyName": "root",
 					"PolicyDocument": {
@@ -406,7 +406,7 @@
 		"ClusterNodeSg" : {
 			"Type" : "AWS::EC2::SecurityGroup",
 			"Properties" : {
-				"GroupDescription" : "Security group for mesosphere cluster nodes.",
+				"GroupDescription" : "Security group for mesos cluster nodes.",
 				"SecurityGroupEgress" : [
 					{ "IpProtocol" : "-1" ,  "CidrIp": "0.0.0.0/0" }
 				],
@@ -414,7 +414,7 @@
 					{ "IpProtocol" : "6" ,  "CidrIp": "0.0.0.0/0", "FromPort" : "5050", "ToPort" : "5050" }
 				],
 				"VpcId" : { "Ref" : "VpcId"},
-				"Tags": [{"Key": "Name", "Value" : "Mesosphere Cluster Nodes"}]
+				"Tags": [{"Key": "Name", "Value" : "Mesos Cluster Nodes"}]
 			}
 		},
 		"ClusterNodeSgSelfIngress" : {
@@ -435,19 +435,19 @@
 					{ "IpProtocol": "6", "SourceSecurityGroupId" : { "Ref" : "ElbSg" }, "FromPort" : "8080", "ToPort" : "8080" }
 				],
 				"VpcId" : { "Ref" : "VpcId"},
-				"Tags": [{"Key": "Name", "Value" : "Es Cluster Gateway Nodes"}]
+				"Tags": [{"Key": "Name", "Value" : "Mesos Cluster Gateway Nodes"}]
 			}
 		},
 
 		"ElbSg" : {
 			"Type" : "AWS::EC2::SecurityGroup",
 			"Properties" : {
-				"GroupDescription" : "Gateway to master nodes of the Elasticsearch Cluster",
+				"GroupDescription" : "Gateway to master nodes of the Mesos Cluster",
 				"VpcId" : { "Ref" : "VpcId"},
-				"Tags": [{"Key": "Name", "Value" : "Es Cluster Load Balancer"}]
+				"Tags": [{"Key": "Name", "Value" : "Mesos Cluster Load Balancer"}]
 			}
 		},
-		"ElbToEsClusterGatewayNodeEgressMesos" : {
+		"ElbToClusterGatewayNodeEgressMesos" : {
 			"Type": "AWS::EC2::SecurityGroupEgress",
 			"Properties":{
 				"IpProtocol": "tcp",
@@ -457,7 +457,7 @@
 				"DestinationSecurityGroupId": { "Ref" : "ClusterGatewayNodeSg" }
 			}
 		},
-		"ElbToEsClusterGatewayNodeEgressMarathon" : {
+		"ElbToClusterGatewayNodeEgressMarathon" : {
 			"Type": "AWS::EC2::SecurityGroupEgress",
 			"Properties":{
 				"IpProtocol": "tcp",
