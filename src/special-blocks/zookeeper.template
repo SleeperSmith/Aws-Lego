@@ -6,8 +6,7 @@
 	"Parameters": {
 		"KeyPairName": {
 			"Description": "Name of an existing EC2 KeyPair to enable SSH access to the instances",
-			"Type": "String",
-			"Default" : "none-prod"
+			"Type": "String"
 		},
 
 		"MasterNodeInstanceType" : {
@@ -135,7 +134,8 @@
 									"    ulimit -n 40000\n",
 									"    export ES_HEAP_SIZE=",{ "Fn::FindInMap": [ "InstanceVariables", { "Ref": "MasterNodeInstanceType" }, "ram" ] },"m\n",
 									"    java -jar /home/local/exhibitor/target/exhibitor-1.5.3.jar -c s3 ",
-										"--s3config ",{"Ref":"ConfigBucketName"},":exhibitor-zk.config --s3region ",{"Ref":"AWS::Region"},"\n",
+										"--s3config ",{"Ref":"ConfigBucketName"},":exhibitor-zk.config --s3region ",{"Ref":"AWS::Region"}," ",
+										"--defaultconfig /home/local/exhibitor/exhibitor-defaults.properties\n",
 									"end script\n",
 									"respawn limit 3 60"
 								]]},
@@ -146,10 +146,24 @@
 							"/home/local/zookeeper/bin/setup-zookeeper.sh" : {
 								"content" : { "Fn::Join" : ["", [
 									"#!/bin/bash\n",
+									"mkdir ../data\n",
+									"mkdir ../log\n",
 									"wget ",{"Ref":"ZookeeperJarUrl"},{"Ref":"ZookeeperJarFileName"},"\n",
 									"tar zxvf ",{"Ref":"ZookeeperJarFileName"},"\n",
 									"cp ./zookeeper-3.4.6/conf/zoo_sample.cfg ./zookeeper-3.4.6/conf/zoo.cfg\n",
 									"./zookeeper-3.4.6/bin/zkServer.sh start\n"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/home/local/exhibitor/exhibitor-defaults.properties" : {
+								"content" : { "Fn::Join" : ["", [
+									"zookeeper-install-directory=/home/local/zookeeper/bin/*\n",
+									"zookeeper-data-directory=/home/local/zookeeper/data\n",
+									"zookeeper-log-directory=/home/local/zookeeper/log\n",
+									"auto-manage-instances=1\n",
+									"auto-manage-instances-apply-all-at-once=0"
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
@@ -167,7 +181,7 @@
 							},
 							"3-start-exhibitor" : {
 								"command" : "service exhibitor start",
-								"cwd" : "/usr/local/phabricator"
+								"cwd" : "/home/local/exhibitor"
 							}
 						}
 					}
@@ -185,7 +199,7 @@
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
 					"#!/bin/bash\n",
 					"apt-get update\n",
-					"apt-get -y install python-setuptools default-jre maven\n",
+					"apt-get -y install python-setuptools default-jre maven openjdk-7-jdk\n",
 					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
 					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r ZkNodeLc -c config\n"
 				]]}},
@@ -205,9 +219,9 @@
 			],
 			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
 			"LaunchConfigurationName" : { "Ref" : "ZkNodeLc" },
-			"MinSize" : "1",
-			"MaxSize" : "4",
-			"DesiredCapacity" : "1",
+			"MinSize" : "3",
+			"MaxSize" : "5",
+			"DesiredCapacity" : "3",
 			"LoadBalancerNames" : [ { "Ref" : "ZkAccessPoint" } ],
 			"Tags" : [{"Key": "Name", "Value" : "Zookeeper Node", "PropagateAtLaunch" : "True"}]
 		  }
@@ -227,17 +241,21 @@
 				{
 					"LoadBalancerPort" : "80",
 					"InstancePort" : "8080",
-					"Protocol" : "HTTP"
+					"Protocol" : "HTTP",
+					"PolicyNames" : ["exhibitor-elb-sticky-policy"]
 				}],
 				"HealthCheck" : {
-					"Target" : { "Fn::Join" : [ "", ["HTTP:8080/"]]},
+					"Target" : { "Fn::Join" : [ "", ["HTTP:8080/exhibitor/v1/ui/index.html"]]},
 					"HealthyThreshold" : "3",
 					"UnhealthyThreshold" : "5",
 					"Interval" : "30",
 					"Timeout" : "5"
 				},
 				"SecurityGroups": [{ "Ref": "ZkElbSg" }],
-				"Scheme": "internal"
+				"Scheme": "internal",
+				"LBCookieStickinessPolicy" : [{
+					"PolicyName" : "exhibitor-elb-sticky-policy"
+				}]
 			}
 		},
 
@@ -302,7 +320,7 @@
 					{ "IpProtocol": "6", "SourceSecurityGroupId" : { "Ref" : "ZkElbSg" }, "FromPort" : "2181", "ToPort" : "2181" }
 				],
 				"VpcId" : { "Ref" : "VpcId"},
-				"Tags": [{"Key": "Name", "Value" : "Es Cluster Gateway Nodes"}]
+				"Tags": [{"Key": "Name", "Value" : "Zookeeper Cluster"}]
 			}
 		},
 		"ZkNodeSelfIngressFollow" : {
@@ -325,6 +343,26 @@
 				"SourceSecurityGroupId" : { "Ref" : "ZkNodeSg" }
 			}
 		},
+		"ZkNodeSelfIngressExhibitor" : {
+			"Type" : "AWS::EC2::SecurityGroupIngress",
+			"Properties" : {
+				"IpProtocol" : "tcp",
+				"ToPort" : "8080",
+				"FromPort" : "8080",
+				"GroupId" : { "Ref" : "ZkNodeSg" },
+				"SourceSecurityGroupId" : { "Ref" : "ZkNodeSg" }
+			}
+		},
+		"ZkNodeSelfIngressZkClient" : {
+			"Type" : "AWS::EC2::SecurityGroupIngress",
+			"Properties" : {
+				"IpProtocol" : "tcp",
+				"ToPort" : "2181",
+				"FromPort" : "2181",
+				"GroupId" : { "Ref" : "ZkNodeSg" },
+				"SourceSecurityGroupId" : { "Ref" : "ZkNodeSg" }
+			}
+		},
 
 		"ZkElbSg" : {
 			"Type" : "AWS::EC2::SecurityGroup",
@@ -334,14 +372,34 @@
 				"Tags": [{"Key": "Name", "Value" : "Zookeeper Access Point"}]
 			}
 		},
-		"ZkElbToEsClusterGatewayNodeEgress" : {
+		"ZkElbToEsClusterGatewayNodeTcpEgress" : {
 			"Type": "AWS::EC2::SecurityGroupEgress",
 			"Properties":{
 				"IpProtocol": "tcp",
 				"FromPort": "2181",
 				"ToPort": "2181",
 				"GroupId": { "Ref" : "ZkElbSg" },
-				"DestinationSecurityGroupId": { "Ref" : "ZkConsumerSg" }
+				"DestinationSecurityGroupId": { "Ref" : "ZkNodeSg" }
+			}
+		},
+		"ZkElbToEsClusterGatewayNodeHttpEgress" : {
+			"Type": "AWS::EC2::SecurityGroupEgress",
+			"Properties":{
+				"IpProtocol": "tcp",
+				"FromPort": "8080",
+				"ToPort": "8080",
+				"GroupId": { "Ref" : "ZkElbSg" },
+				"DestinationSecurityGroupId": { "Ref" : "ZkNodeSg" }
+			}
+		},
+		"ZkElbToEsClusterGatewayNodeTcpIngress" : {
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties":{
+				"IpProtocol": "tcp",
+				"FromPort": "2181",
+				"ToPort": "2181",
+				"GroupId": { "Ref" : "ZkElbSg" },
+				"SourceSecurityGroupId": { "Ref" : "ZkConsumerSg" }
 			}
 		},
 

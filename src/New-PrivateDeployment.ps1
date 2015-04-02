@@ -1,5 +1,5 @@
 ﻿param(
-    $bucketname = "bc-deployment",
+    $bucketname = (Read-Host 'Name of deployment bucket'),
     $projectname = "AWS-Lego",
     $version = "Temporary"
 )

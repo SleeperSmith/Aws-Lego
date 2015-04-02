@@ -98,6 +98,13 @@ function Get-StackLinkParameters {
         $matchedParams = $StackParameters | ? {
             $_.Key -eq $cfnParameter.ParameterKey
         }
+
+        if ($cfnParameter.ParameterKey -eq "AvailableAzs") {
+            $azs = Get-EC2AvailabilityZone | % { $_.ZoneName }
+            $azString = [string]::Join(",", $azs)
+            $StackParameters += @{"Key" = "AvailableAzs"; "Value" = $azString}
+        }
+
         if ($matchedParams.count -gt 0) {
             continue
         }
@@ -156,6 +163,8 @@ function Get-StackLinkParameters {
 
     }
 
+    
+
     $StackParameters | % {
         Write-Host ">" $_["Key"]: $_["Value"]
     }
@@ -206,7 +215,7 @@ function Upsert-StackLink(
     }
     Write-Host StackArn: $stackId
     Write-Host "## End New-StackLink ##"
-    return $stackId
+    return $StackName
 }
 
 function Wait-StackLink(
@@ -226,8 +235,8 @@ function Wait-StackLink(
         [Amazon.CloudFormation.StackStatus]::ROLLBACK_IN_PROGRESS
     )
 
-    while($statusToBlock.Contains((Get-CFNStack $StackLinkId).StackStatus)) {
-        Write-Host "Waiting... Stack status: " (Get-CFNStack $StackLinkId).StackStatus
+    while($statusToBlock.Contains((Get-CFNStack -StackName $StackLinkId).StackStatus)) {
+        Write-Host "Waiting... Stack status: " (Get-CFNStack -StackName $StackLinkId).StackStatus
         sleep $PollInterval
     }
     Write-Host "## End Wait-StackLink ##"

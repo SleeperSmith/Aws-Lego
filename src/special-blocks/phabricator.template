@@ -90,7 +90,6 @@
 		},
 		"UbuntuAmi": {
 			"Description": "AMI to use. Note Ubuntu is prefered.",
-			"Default": "ami-fddabdc7",
 			"Type": "String"
 		},
 		"Subnet1Id": {
@@ -214,9 +213,9 @@
 							"/usr/local/mount-disk.sh" : {
 								"content" : { "Fn::Join" : ["\n", [
 									"#!/bin/bash",
-									{"Fn::If":["HasRepoSnapshot","","mkfs -t ext4 /dev/xvdb"]},
+									{"Fn::If":["HasRepoSnapshot","","mkfs -t ext3 /dev/xvdb"]},
 									"sudo mkdir /mnt/xvdb",
-									"sudo mount -t ext4 /dev/xvdb /mnt/xvdb"
+									"sudo mount -t ext3 /dev/xvdb /mnt/xvdb"
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
@@ -317,7 +316,7 @@
 				"ImageId" : { "Ref" : "UbuntuAmi" },
 				"NetworkInterfaces" : [
 				{
-					"AssociatePublicIpAddress" : "true",
+					"AssociatePublicIpAddress" : "false",
 					"SubnetId" : { "Ref": "Subnet1Id" },
 					"DeviceIndex" : "0",
 					"GroupSet" : [
