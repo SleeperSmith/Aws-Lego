@@ -71,7 +71,7 @@
 		},
 
 		"VpcId": {
-			"Description" : "VPCid associated with the subnets. [subnets.parameters.VpcId]",
+			"Description" : "VPCid associated with the subnets. [nat-enabled.parameters.VpcId]",
 			"Type": "String"
 		},
 		"Subnet1Id": {
