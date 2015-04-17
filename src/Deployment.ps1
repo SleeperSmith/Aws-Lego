@@ -22,6 +22,17 @@ function New-Deployment {
     return $deploymentUrl
 }
 
+function Get-Deployment {
+    param (
+        [string]$bucketname,
+        [string]$projectname,
+        [string]$version,
+        [string]$region = (Get-DefaultAWSRegion).Region
+    )
+    
+    return "https://s3-$region.amazonaws.com/$bucketname/$projectname/$version/"
+}
+
 function InternalMatchTag {
     param(
         $CfnStacks,
