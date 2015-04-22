@@ -99,6 +99,22 @@
 		"VpcId": {
 			"Description" : "VPCid associated with the subnets. [subnets.parameters.VpcId]",
 			"Type": "String"
+		},
+
+		"PhabricatorCommit": {
+			"Description" : "Hash of the git commit to checkout.",
+			"Type": "String",
+			"Default": "4dea152215cc008239ddc5fcccd5742c9243fb1e"
+		},
+		"LibphutilCommit": {
+			"Description" : "Hash of the git commit to checkout.",
+			"Type": "String",
+			"Default": "aaee4009e20db8eea94591117788be57c133eae5"
+		},
+		"ArcanistCommit": {
+			"Description" : "Hash of the git commit to checkout.",
+			"Type": "String",
+			"Default": "a9ebe1cb4ffc9ebfa1ef8a87ef51e0b8b026cb42"
 		}
 	},
 
@@ -203,9 +219,15 @@
 					},
 					"download-files" : {
 						"sources": {
-							"/usr/local/libphutil" : "https://github.com/phacility/libphutil/tarball/master",
-							"/usr/local/arcanist" : "https://github.com/phacility/arcanist/tarball/master",
-							"/usr/local/phabricator" : "https://github.com/phacility/phabricator/tarball/master"
+							"/usr/local/libphutil" : {"Fn::Join": ["", [
+								"https://github.com/phacility/libphutil/tarball/", {"Ref": "LibphutilCommit"}
+							]]},
+							"/usr/local/arcanist" : {"Fn::Join": ["", [
+								"https://github.com/phacility/arcanist/tarball/", {"Ref": "ArcanistCommit"}
+							]]},
+							"/usr/local/phabricator" : {"Fn::Join": ["", [
+								"https://github.com/phacility/phabricator/tarball/", {"Ref": "PhabricatorCommit"}
+							]]}
 						}
 					},
 					"configure" : {
@@ -226,7 +248,6 @@
 									"#!/bin/bash\n",
 									"./config set phd.user daemon-user\n",
 									"./config set phabricator.timezone ", {"Ref": "PhabTimezone"}, "\n",
-									"./config set storage.upload-size-limit 5M\n",
 									"./config set diffusion.allow-http-auth true\n",
 									"./config set metamta.mail-adapter PhabricatorMailImplementationAmazonSESAdapter\n",
 									"./config set metamta.default-address ", {"Ref": "PhabMailAddress"}, "\n",
