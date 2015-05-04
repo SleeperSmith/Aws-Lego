@@ -266,7 +266,7 @@
 				"RuleAction" : "allow",
 				"Egress" : "true",
 				"CidrBlock" : "0.0.0.0/0",
-				"PortRange" : { "From" : "32768", "To" : "65535" }
+				"PortRange" : { "From" : "1024", "To" : "65535" }
 			}
 		},
 		"ElbAclEntryOutSubnet1Requests" : {
