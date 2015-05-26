@@ -6,7 +6,7 @@
 	"Parameters": {
 		"KeyPairName": {
 			"Description": "Name of an existing EC2 KeyPair to enable SSH access to the instances",
-			"Type": "String"
+			"Type": "AWS::EC2::KeyPair::KeyName"
 		},
 
 		"DbStorageQuota" : {
@@ -90,31 +90,31 @@
 		},
 		"UbuntuAmi": {
 			"Description": "AMI to use. Note Ubuntu is prefered.",
-			"Type": "String"
+			"Type": "AWS::EC2::Image::Id"
 		},
 		"Subnet1Id": {
 			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet1]",
-			"Type": "String"
+			"Type": "AWS::EC2::Subnet::Id"
 		},
 		"VpcId": {
 			"Description" : "VPCid associated with the subnets. [subnets.parameters.VpcId]",
-			"Type": "String"
+			"Type": "AWS::EC2::VPC::Id"
 		},
 
 		"PhabricatorCommit": {
 			"Description" : "Hash of the git commit to checkout.",
 			"Type": "String",
-			"Default": "4dea152215cc008239ddc5fcccd5742c9243fb1e"
+			"Default": "04bf04d783db9019c746d7c787bdace8660afe62"
 		},
 		"LibphutilCommit": {
 			"Description" : "Hash of the git commit to checkout.",
 			"Type": "String",
-			"Default": "aaee4009e20db8eea94591117788be57c133eae5"
+			"Default": "672c0f7d5da9be6cda619428a9da3b91a670ea2f"
 		},
 		"ArcanistCommit": {
 			"Description" : "Hash of the git commit to checkout.",
 			"Type": "String",
-			"Default": "a9ebe1cb4ffc9ebfa1ef8a87ef51e0b8b026cb42"
+			"Default": "64d03ff68bf2ff4ef99186472704df8aface9ef3"
 		}
 	},
 
@@ -145,7 +145,8 @@
 					"HasDbSnapshot", {"Ref": "DbSnapshot"}, {"Ref" : "AWS::NoValue"}
 				]},
 				"DBSubnetGroupName" : {"Ref":"DbSubnetGroup"},
-				"Tags" : [{"Key": "Name", "Value" : "Phabricator Database"}]
+				"Tags" : [{"Key": "Name", "Value" : "Phabricator Database"}],
+				"StorageType" : "gp2"
 			},
 			"DeletionPolicy" : "Snapshot"
 		}, 
@@ -159,7 +160,8 @@
 					"general_log": "1", 
 					"old_passwords": "0",
 					"sql_mode": "STRICT_ALL_TABLES",
-					"ft_min_word_len": "3"
+					"ft_min_word_len": "3",
+					"max_allowed_packet": "100000000"
 				}
 			} 
 		},
@@ -249,6 +251,7 @@
 									"./config set phd.user daemon-user\n",
 									"./config set phabricator.timezone ", {"Ref": "PhabTimezone"}, "\n",
 									"./config set diffusion.allow-http-auth true\n",
+									"./config set pygments.enabled true\n",
 									"./config set metamta.mail-adapter PhabricatorMailImplementationAmazonSESAdapter\n",
 									"./config set metamta.default-address ", {"Ref": "PhabMailAddress"}, "\n",
 									"./config set amazon-ses.access-key ", { "Ref": "PhabricatorServiceAccountKeySecret" }, "\n",
@@ -266,9 +269,12 @@
 							"/usr/local/phabricator/misc.sh" : {
 								"content" : { "Fn::Join" : ["", [
 									"#!/bin/bash\n",
+									"pip install pygments\n",
 									"ln -s /usr/lib/git-core/git-http-backend /usr/local/phabricator/support/bin/git-http-backend\n",
 									"./bin/storage upgrade -f\n",
 									"echo \"www-data ALL=(daemon-user) SETENV: NOPASSWD: /usr/lib/git-core/git-http-backend, /usr/bin/hg\" >> /etc/sudoers\n",
+									"echo \"opcache.validate_timestamps=0\" >> /etc/php5/apache2/php.ini\n",
+									"sed -i 's/post_max_size = .*/post_max_size = 50M/' /etc/php5/apache2/php.ini\n",
 									"a2enmod rewrite\n",
 									"a2enmod ssl\n",
 									"a2dissite 000-default\n",
@@ -326,6 +332,12 @@
 							"4-start-phd" : {
 								"command" : "./setup-phd.sh",
 								"cwd" : "/usr/local/phabricator"
+							},
+							"10-signal" : {
+								"command" : {"Fn::Join": ["",[
+									"/usr/local/bin/cfn-signal -e 0 -r \"Webserver setup complete\" '", { "Ref" : "WaitHandle" }, "'"
+								]]},
+								"cwd" : "/usr/local/phabricator"
 							}
 						}
 					}
@@ -347,7 +359,7 @@
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
 					"#!/bin/bash\n",
 					"apt-get update\n",
-					"apt-get -y install python-setuptools\n",
+					"apt-get -y install python-setuptools python-pip\n",
 					"apt-get -y install git mercurial subversion apache2 dpkg-dev\n",
 					"apt-get -y install php5 php5-mysql php5-gd php5-dev php5-curl php-apc php5-cli php5-json\n",
 					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
@@ -363,6 +375,18 @@
 					{"Device": "xvdb", "VolumeId" : {"Ref": "RepoDisk"}}
 				],
 				"Tags" : [{"Key": "Name", "Value" : "Phabricator"}]
+			}
+		},
+		"WaitHandle" : {
+			"Type" : "AWS::CloudFormation::WaitConditionHandle"
+		},
+
+		"WaitCondition" : {
+			"Type" : "AWS::CloudFormation::WaitCondition",
+			"DependsOn" : "PhabricatorWeb",
+			"Properties" : {
+				"Handle" : {"Ref" : "WaitHandle"},
+				"Timeout" : "1200"
 			}
 		},
 
