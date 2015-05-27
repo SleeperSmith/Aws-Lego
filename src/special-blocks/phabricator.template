@@ -9,9 +9,20 @@
 			"Type": "AWS::EC2::KeyPair::KeyName"
 		},
 
+		"IsPublic": {
+			"Type" : "String",
+			"Default" : "false",
+			"AllowedValues" : ["true", "false"],
+			"Description" : "Whether the site has a public ip address and is publicly available."
+		},
+		"RepoStorageQuota" : {
+			"Description": "Disk size of MySql server.",
+			"Default": "20",
+			"Type": "Number"
+		},
 		"DbStorageQuota" : {
 			"Description": "Disk size of MySql server.",
-			"Default": "5",
+			"Default": "20",
 			"Type": "Number"
 		},
 		"DbInstanceTyp" : {
@@ -54,7 +65,7 @@
 			"Type" : "String"
 		},
 		"Hostname" : {
-			"Description" : "Hostname to access phabricator.",
+			"Description" : "Hostname to access phabricator. e.g. phabricator.your-domain.com",
 			"Type" : "String"
 		},
 
@@ -92,8 +103,12 @@
 			"Description": "AMI to use. Note Ubuntu is prefered.",
 			"Type": "AWS::EC2::Image::Id"
 		},
-		"Subnet1Id": {
+		"PvtSubnet1Id": {
 			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet1]",
+			"Type": "AWS::EC2::Subnet::Id"
+		},
+		"PublicSubnet1Id": {
+			"Description" : "Subnet to run HA web cluster on. [webserver.resources.Subnet1]",
 			"Type": "AWS::EC2::Subnet::Id"
 		},
 		"VpcId": {
@@ -124,7 +139,10 @@
 		]}]},
 		"HasRepoSnapshot" : {"Fn::Not": [{"Fn::Equals": [
 			{"Ref": "RepoDiskSnapshot"}, ""
-		]}]}
+		]}]},
+		"IsPublicCond" : {"Fn::Equals": [
+			{"Ref": "IsPublic"}, "true"
+		]}
 	},
 
 	"Resources" : {
@@ -260,7 +278,7 @@
 									"./config set mysql.user ", {"Ref":"DbUsername"}, "\n",
 									"./config set mysql.pass ", {"Ref":"DbPassword"}, "\n",
 									"./config set mysql.host ", {"Fn::GetAtt" : [ "Database", "Endpoint.Address"]},"\n",
-									"./config set phabricator.base-uri \"", { "Ref": "Hostname" }, "\""
+									"./config set phabricator.base-uri \"https://", { "Ref": "Hostname" }, "/\""
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
@@ -269,6 +287,9 @@
 							"/usr/local/phabricator/misc.sh" : {
 								"content" : { "Fn::Join" : ["", [
 									"#!/bin/bash\n",
+									"openssl req -nodes -x509 -newkey rsa:4096 -days 35600 -sha256 ",
+										"-keyout private.key -out certificate.crt ",
+										"-subj \"/C=AU/ST=NSW/L=Sydney/O=BitClouded/CN=", { "Ref": "Hostname" }, "\"\n",
 									"pip install pygments\n",
 									"ln -s /usr/lib/git-core/git-http-backend /usr/local/phabricator/support/bin/git-http-backend\n",
 									"./bin/storage upgrade -f\n",
@@ -279,7 +300,7 @@
 									"a2enmod ssl\n",
 									"a2dissite 000-default\n",
 									"a2ensite phabricator\n",
-									"service apache2 restart"
+									"service apache2 restart\n"
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
@@ -300,8 +321,16 @@
 							},
 							"/etc/apache2/sites-available/phabricator.conf" : {
 								"content" : { "Fn::Join" : ["", [
-									"<VirtualHost *>\n",
+									"<VirtualHost *:80>\n",
+										"ServerName ", { "Ref": "Hostname" }, "\n",
+										"Redirect permanent / https://", { "Ref": "Hostname" }, "/\n",
+									"</VirtualHost>\n",
+									"<VirtualHost *:443>\n",
+										"ServerName ", { "Ref": "Hostname" }, "\n",
+										"SSLCertificateFile \"/usr/local/phabricator/certificate.crt\"\n",
+										"SSLCertificateKeyFile \"/usr/local/phabricator/private.key\"\n",
 										"DocumentRoot /usr/local/phabricator/webroot\n",
+										"SSLEngine on\n",
 										"RewriteEngine on\n",
 										"RewriteRule ^/rsrc/(.*)     -                       [L,QSA]\n",
 										"RewriteRule ^/favicon.ico   -                       [L,QSA]\n",
@@ -349,8 +378,11 @@
 				"ImageId" : { "Ref" : "UbuntuAmi" },
 				"NetworkInterfaces" : [
 				{
-					"AssociatePublicIpAddress" : "false",
-					"SubnetId" : { "Ref": "Subnet1Id" },
+					"AssociatePublicIpAddress" : { "Ref" : "IsPublic" },
+					"SubnetId" : {"Fn::If":["IsPublicCond",
+						{ "Ref": "PublicSubnet1Id" },
+						{ "Ref": "PvtSubnet1Id" }
+					]},
 					"DeviceIndex" : "0",
 					"GroupSet" : [
 						{"Ref":"WebServerSg"}
