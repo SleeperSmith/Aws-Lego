@@ -27,6 +27,16 @@
 			"Description": "AMI to use. Note Ubuntu is prefered.",
 			"Type": "String"
 		},
+		"JenkinsStateDiskSnapshot" : {
+			"Description" : "Snapshot of jenkins state disk",
+			"Type" : "String",
+			"Default" : ""
+		},
+		"JenkinsStateDiskSize" : {
+			"Description" : "Size of the disk for storing Jenkins state.",
+			"Type" : "Number",
+			"Default" : "100"
+		},
 
 		"AgentInstanceType" : {
 			"Description" : "WebServer EC2 instance type",
@@ -69,7 +79,7 @@
 			"ConstraintDescription" : "must be a valid EC2 instance type."
 		},
 		"WindowsAgentAmi": {
-			"Description": "AMI to use. Note Ubuntu is prefered.",
+			"Description": "AMI to use for windows build agent.",
 			"Type": "String"
 		},
 		"LinuxAgentAmi": {
@@ -86,12 +96,12 @@
 		
 		"JenkinsSwarmJar": {
 			"Description": "Url to download Go windows agent binary from.",
-			"Default": "http://maven.jenkins-ci.org/content/repositories/releases/org/jenkins-ci/plugins/swarm-client/1.10/swarm-client-1.10-jar-with-dependencies.jar",
+			"Default": "http://maven.jenkins-ci.org/content/repositories/releases/org/jenkins-ci/plugins/swarm-client/1.24/swarm-client-1.24-jar-with-dependencies.jar",
 			"Type": "String"
 		},
 		"JenkinsSwarmMasterPlugin": {
 			"Description": "Url to download Go windows agent binary from.",
-			"Default": "http://updates.jenkins-ci.org/download/plugins/swarm/1.16/swarm.hpi",
+			"Default": "http://updates.jenkins-ci.org/download/plugins/swarm/1.24/swarm.hpi",
 			"Type": "String"
 		},
 		"JavaWindowsInstaller": {
@@ -150,8 +160,28 @@
 			"r3.8xlarge": { "ram" : "12000", "lspotprice": "1.043", "wspotprice": "1.228" }
 		}
 	},
+	"Conditions" : {
+		"HasStateSnapshot" : {"Fn::Not": [{"Fn::Equals": [
+			{"Ref": "JenkinsStateDiskSnapshot"}, ""
+		]}]}
+	},
 
 	"Resources" : {
+
+		"RepoDisk" : {
+			"Type":"AWS::EC2::Volume",
+			"Properties" : {
+				"AvailabilityZone" : {"Fn::Select":["0", { "Fn::GetAZs": "" }]},
+				"Size" : {"Ref": "JenkinsStateDiskSize"},
+				"SnapshotId" : {"Fn::If":["HasStateSnapshot",
+					{"Ref":"JenkinsStateDiskSnapshot"},
+					{"Ref":"AWS::NoValue"}
+				]},
+				"Tags" : [],
+				"VolumeType" : "gp2"
+			},
+			"DeletionPolicy" : "Snapshot"
+		},
 
 		"JenkinsMaster" : {
 			"Type" : "AWS::EC2::Instance",
@@ -171,13 +201,15 @@
 							}
 						},
 						"files" : {
-							"/home/usr/local/jenkins-install.sh" : {
+							"/home/local/jenkins-install.sh" : {
 								"content" : { "Fn::Join" : ["", [
 									"#!/bin/bash\n",
 									"wget -q -O - https://jenkins-ci.org/debian/jenkins-ci.org.key | sudo apt-key add -\n",
 									"sh -c \"echo deb http://pkg.jenkins-ci.org/debian binary/ > /etc/apt/sources.list.d/jenkins.list\"\n",
 									"apt-get update\n",
-									"apt-get install jenkins -y"
+									"apt-get install jenkins -y\n",
+									"sed -i 's/JENKINS_HOME=\\/var\\/lib\\/\\$NAME/JENKINS_HOME=\\/mnt\\/xvdb/g' /etc/default/jenkins\n",
+									"service jenkins restart"
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
@@ -186,46 +218,44 @@
 						},
 						"commands" : {
 							"1-install": {
-								"command" : "bash /home/usr/local/jenkins-install.sh",
-								"cwd" : "/home/usr/local/",
+								"command" : "./jenkins-install.sh",
+								"cwd" : "/home/local/",
 								"ignoreErrors" : "false"
 							}
 						}
 					},
 					"initialise" : {
 						"files" : {
-							"/home/usr/local/mount-disk.sh" : {
-								"content" : { "Fn::Join" : ["", [
-									"#!/bin/bash\n",
-									"mkfs -t ext4 /dev/$1\n",
-									"mkdir /mnt/$1\n",
-									"mount -t ext4 /dev/$1 /mnt/$1\n",
+							"/home/local/mount-disk.sh" : {
+								"content" : { "Fn::Join" : ["\n", [
+									"#!/bin/bash",
+									{"Fn::If":["HasStateSnapshot","","mkfs -t ext3 /dev/$1"]},
+									"mkdir /mnt/$1",
+									"mount -t ext3 /dev/$1 /mnt/$1",
 									"chmod 777 /mnt/$1"
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
 								"group"  : "ubuntu"
 							},
-							"/var/lib/jenkins/plugins/swarm.hpi" : {
-								"source": {"Ref": "JenkinsSwarmMasterPlugin"},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							}
+							"/mnt/xvdb/plugins/swarm.hpi" : {"Fn::If":["HasStateSnapshot",
+								{"Ref":"AWS::NoValue"},
+								{
+									"source": {"Ref": "JenkinsSwarmMasterPlugin"},
+									"mode"   : "000755",
+									"owner"  : "ubuntu",
+									"group"  : "ubuntu"
+								}
+							]}
 						},
 						"commands" : {
-							"1-mount-gp-ssd": {
-								"command" : "bash mount-disk.sh xvdk",
-								"cwd" : "/home/usr/local/",
-								"ignoreErrors" : "false"
-							},
-							"2-mount-data-disk": {
+							"1-mount-data-disk": {
 								"command" : "bash mount-disk.sh xvdb",
-								"cwd" : "/home/usr/local/",
+								"cwd" : "/home/local/",
 								"ignoreErrors" : "true"
 							},
 							"3-mount-data-disk": {
-								"command" : "chmod 777 /var/lib/jenkins/plugins -R",
+								"command" : "chmod 777 /mnt/xvdb -R",
 								"ignoreErrors" : "true"
 							},
 							"4-restart-jenkins": {
@@ -254,12 +284,11 @@
 				"BlockDeviceMappings": [
 					{
 						"DeviceName" : "/dev/sda1",
-						"Ebs": { "VolumeSize": "40", "VolumeType": "gp2" }
-					},
-					{
-						"DeviceName" : "/dev/xvdk",
-						"Ebs" : { "VolumeSize" : {"Ref": "ArtifactDiskSize"}, "VolumeType" : "standard" }
+						"Ebs": { "VolumeSize": "30", "VolumeType": "gp2" }
 					}
+				],
+				"Volumes" : [
+					{"Device": "xvdb", "VolumeId" : {"Ref": "RepoDisk"}}
 				],
 				"Tags": [
 					{"Key": "Name", "Value" : "Jenkins Master"}
