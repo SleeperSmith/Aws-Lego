@@ -194,7 +194,7 @@
 					{"Ref":"AWS::NoValue"}
 				]},
 				"Tags" : [],
-				"VolumeType" : "standard"
+				"VolumeType" : "gp2"
 			},
 			"DeletionPolicy" : "Snapshot"
 		},
