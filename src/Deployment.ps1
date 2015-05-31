@@ -5,8 +5,8 @@ function New-Deployment {
     param (
         [string]$bucketname,
         [string]$projectname,
-        [string]$version,
-        [string]$deployroot
+        [string]$version = "experimental",
+        [string]$deployroot = ".\"
     )
 
     $prefix = "$projectname/$version/"
@@ -16,7 +16,7 @@ function New-Deployment {
     if ($oldfiles.Count -gt 0) {
         $removedObjects = Remove-S3Object -BucketName $bucketname -Keys $oldfiles -Force
     }
-    Write-S3Object -BucketName $bucketname -KeyPrefix $prefix -Folder $deployroot -Recurse
+    Write-S3Object -BucketName $bucketname -KeyPrefix $prefix -Folder $deployroot -Recurse | Out-Null
 
     # now test the templates.
     $region = (Get-DefaultAWSRegion).Region
@@ -24,8 +24,8 @@ function New-Deployment {
         $_.Key.EndsWith(".template")
     } | % {
         Write-Host "Testing > $($_.Key)"
-        Test-CFNTemplate -TemplateURL "https://s3-$region.amazonaws.com/$bucketname/$($_.Key)"
-    }
+        Write-Host (Test-CFNTemplate -TemplateURL "https://s3-$region.amazonaws.com/$bucketname/$($_.Key)")
+    } | Out-Null
 
     $deploymentUrl = "https://s3-$region.amazonaws.com/$bucketname/$projectname/$version/"
     return $deploymentUrl
@@ -35,7 +35,7 @@ function Get-Deployment {
     param (
         [string]$bucketname,
         [string]$projectname,
-        [string]$version,
+        [string]$version = "experimental",
         [string]$region = (Get-DefaultAWSRegion).Region
     )
     
