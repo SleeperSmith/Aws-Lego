@@ -6,7 +6,7 @@
 	"Parameters": {
 		"KeyPairName": {
 			"Description": "Name of an existing EC2 KeyPair to enable SSH access to the instances",
-			"Type": "String"
+			"Type": "AWS::EC2::KeyPair::KeyName"
 		},
 
 		"DataNodeInstanceType" : {
@@ -44,7 +44,7 @@
 		"EsClusterAmi": {
 			"Description": "AMI to use. Note Ubuntu is prefered.",
 			"Default": "ami-fddabdc7",
-			"Type": "String"
+			"Type": "AWS::EC2::Image::Id"
 		},
 		"EsDataDiskSize": {
 			"Description": "Size of the SSD for the elasticsearch to write to.",
@@ -72,19 +72,19 @@
 
 		"VpcId": {
 			"Description" : "VPCid associated with the subnets. [nat-enabled.parameters.VpcId]",
-			"Type": "String"
+			"Type": "AWS::EC2::VPC::Id"
 		},
 		"Subnet1Id": {
 			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet1]",
-			"Type": "String"
+			"Type": "AWS::EC2::Subnet::Id"
 		},
 		"Subnet2Id": {
 			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet2]",
-			"Type": "String"
+			"Type": "AWS::EC2::Subnet::Id"
 		},
 		"Subnet3Id": {
 			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet3]",
-			"Type": "String",
+			"Type": "AWS::EC2::Subnet::Id",
 			"Default": ""
 		}
 	},
