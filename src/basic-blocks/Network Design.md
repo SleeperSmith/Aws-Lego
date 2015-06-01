@@ -16,7 +16,7 @@ Where as in a 3 AZ region:
 ## Security Consideration
 
 The network ACL are designed with the following assumptions:
--	Any AWS managed services that do not provide root privilege user access are safe by default, i.e. ELB, RDS, ElastiCache, etc etc. Note this exclude services such as EMR as root access are provided even tho it's a managed service.
+-	Any AWS managed services that do not provide root privilege user access are safe by default, i.e. ELB, RDS, ElastiCache, etc etc. Note this exclude services such as EMR as root access are provided even though it's a managed service.
 - Any service or instance that provide root privilege user access and accept public traffic (0.0.0.0/0) of any kind are compromised and are potentially malicious.
 - It is not possible to compromise systems that only allow outbound access and allow no public traffic of any kind.
 - Each individual subnet has to be responsible for protecting themselves. E.g., use inbound blocking ACL rules rather than relying on other subnets' outbound blocking rules to stop traffic.
@@ -33,15 +33,17 @@ Essentially public subnet only calls into the 2nd to 4th type of subnets and wil
 
 ## Basic reference deployment.
 
-10.0.0.0~2.0 -> Public Web Server
-(10.0.0.0/19 means enough room for another gateway subnet + nat enabled, there's an extra pair of subnet at end of every 32 subnets.)
-10.0.32.0~34.0 -> Private
-10.0.38.0~40.0 -> Public ELB
-10.0.50.0~52.0 -> Private ELB
-(10.0.32.0/19 are subnets shared by both public and private subnets??? It is also possible to blanket inbound blocking rule to include this range as these AWS managed services would not initiated connections to servers anyway.)
-10.0.64.0~66.0 -> Outbound access only subnet without nat
-10.0.76.0~78.0 -> Nat Enabled
-10.0.88.0~90.0 -> Public web behind elb.
+![Network Diagram](network-diagram.png)  
+
+10.0.0.0~2.0 -> Public Web Server  
+(10.0.0.0/19 means enough room for another gateway subnet + nat enabled, there's an extra pair of subnet at end of every 32 subnets.)  
+10.0.32.0~34.0 -> Private  
+10.0.38.0~40.0 -> Public ELB  
+10.0.50.0~52.0 -> Private ELB  
+(10.0.32.0/19 are subnets shared by both public and private subnets??? It is also possible to blanket inbound blocking rule to include this range as these AWS managed services would not initiated connections to servers anyway.)  
+10.0.64.0~66.0 -> Outbound access only subnet without nat  
+10.0.76.0~78.0 -> Nat Enabled  
+10.0.88.0~90.0 -> Public web behind elb.  
 
 ## Subnet characteristics.
 
