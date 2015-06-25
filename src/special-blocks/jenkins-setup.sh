@@ -1,3 +1,3 @@
-#!/bin/bash
+﻿#!/bin/bash
 
-apt-get install -y git,nodejs
+apt-get install -y git nodejs

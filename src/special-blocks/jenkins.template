@@ -484,8 +484,9 @@
 						"commands" : {
 							
 							"1-misc-configs" : {
-								"command" : "./jenkins-setup.sh",
-								"cwd" : "/home/local"
+								"command" : "bash ./jenkins-setup.sh",
+								"cwd" : "/home/local",
+								"ignoreErrors" : "true"
 							},
 							"3-start-agent" : {
 								"command" : "service jenkins-slave start",
