@@ -323,6 +323,23 @@
 									{"Ref":"TemplateBaseUrl"},"Install-JenkinsTask.ps1"
 								]]}
                             },
+							"C:\\cfn\\scripts\\jenkins-vs-install.xml": {
+                                "source" : { "Fn::Join" : ["", [
+									{"Ref":"TemplateBaseUrl"},"jenkins-vs-install.xml"
+								]]}
+                            },
+							"C:\\cfn\\scripts\\Install-VisualStudio.ps1": {
+                                "content": {"Fn::Join": ["\n",[
+                                    "Install-WindowsFeature AS-NET-Framework,WAS-NET-Environment -IncludeManagementTools -IncludeAllSubFeature",
+                                    "Invoke-WebRequest \"http://download.microsoft.com/download/1/E/0/1E0AA8D0-F5D4-45A8-9CA6-D9DC8A54DE3E/vs_ultimate.exe\" -OutFile .\\web-vs-install.exe",
+									".\".\\web-vs-install.exe\" /adminfile C:\\cfn\\scripts\\jenkins-vs-install.xml /log vs-install.log /quiet /norestart",
+									"",
+									"while((Get-Process | ? { $_.ProcessName -eq 'web-vs-install' }).Count -gt 0) {",
+									"    Write-Host 'Waiting...'",
+									"    Sleep 180",
+									"}"
+                                ]]}
+                            },
 							"C:\\cfn\\scripts\\RunAgent.ps1": {
                                 "content": {"Fn::Join": ["",[
                                     "$instanceId = Invoke-RestMethod http://169.254.169.254/latest/meta-data/instance-id\n",
@@ -331,7 +348,7 @@
                                     ".\"$($java.FullName)\" -jar C:\\cfn\\bin\\swarm-client-with-dependencies.jar `\n",
                                     "    -master http://", { "Fn::GetAtt" : ["JenkinsMaster", "PrivateIp"] }, ":8080 `\n",
 									"    -username ", {"Ref": "JenkinsAgentUsername"}, " -password ", {"Ref": "JenkinsAgentPassword"}, " `\n",
-                                    "    -name $instanceId -description $ipv4address -fsroot Z:\\ -executors 4\n"
+                                    "    -name \"win-$instanceId\" -description $ipv4address -fsroot Z:\\ -executors 2 -labels windows\n"
                                 ]]}
                             }
                         },
@@ -340,7 +357,7 @@
                                 "command": "C:\\cfn\\bin\\java-installer.exe STATIC=0 WEB_JAVA=0 /s /L C:\\cfn\\log\\java-installer.log",
                                 "waitAfterCompletion": "0"
                             },
-							"1-install-jenkins": {
+							"3-install-jenkins": {
                                 "command": { "Fn::Join": [" ", [
 									"powershell.exe -ExecutionPolicy Unrestricted",
 									"C:\\cfn\\scripts\\Install-JenkinsTask.ps1"
@@ -360,9 +377,7 @@
 					{ "Ref" : "AgentSg" }
 				],
 				"BlockDeviceMappings": [
-					{ "DeviceName" : "/dev/sda1", "Ebs" : { "VolumeSize" : "60", "VolumeType" : "gp2" } },
-					{ "DeviceName": "xvdb", "VirtualName": "ephemeral0" },
-					{ "DeviceName": "xvdc", "VirtualName": "ephemeral1" }
+					{ "DeviceName" : "/dev/sda1", "Ebs" : { "VolumeSize" : "60", "VolumeType" : "gp2" } }
 				],
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
 					"<script>\n",
@@ -423,6 +438,98 @@
 				"Tags" : [{"Key": "Name", "Value" : "Jenkins Slave Spot", "PropagateAtLaunch" : "True"}]
 			}
 		},
+
+		"JenkinsLinuxSlaveLc" : {
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Metadata" : {
+				"AWS::CloudFormation::Init" : {
+					"configSets": {
+						"config": [
+							"setup"
+						]
+					},
+					"setup" : {
+						"files" : {
+							"/home/local/swarm-client-with-dependencies.jar" : {
+								"source": { "Ref": "JenkinsSwarmJar" },
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/home/local/jenkins-setup.sh" : {
+								"source" : { "Fn::Join" : ["", [
+									{"Ref":"TemplateBaseUrl"},"jenkins-setup.sh"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/etc/init/jenkins-slave.conf" : {
+								"content" : { "Fn::Join" : ["", [
+									"script\n",
+									"    java -jar /home/local/swarm-client-with-dependencies.jar ",
+										"-master http://", { "Fn::GetAtt" : ["JenkinsMaster", "PrivateIp"] }, ":8080 ",
+										"-username ", {"Ref": "JenkinsAgentUsername"}, " -password ", {"Ref": "JenkinsAgentPassword"}, " ",
+										"-name lin-$(curl -s http://169.254.169.254/latest/meta-data/instance-id) ",
+										"-description $(curl -s http://169.254.169.254/latest/meta-data/local-ipv4) ",
+										"-executors 2 -labels linux\n",
+									"end script\n",
+									"respawn limit 3 60"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							}
+						},
+						"commands" : {
+							
+							"1-misc-configs" : {
+								"command" : "./jenkins-setup.sh",
+								"cwd" : "/home/local"
+							},
+							"3-start-agent" : {
+								"command" : "service jenkins-slave start",
+								"cwd" : "/home/local"
+							}
+						}
+					}
+				}
+			},
+			"Properties": {
+				"InstanceType" : { "Ref" : "AgentInstanceType" },
+				"ImageId" : { "Ref" : "LinuxAgentAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" },
+				"AssociatePublicIpAddress": "false",
+				"SecurityGroups": [
+					{ "Ref" : "AgentSg" }
+				],
+				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+					"#!/bin/bash\n",
+					"apt-get update\n",
+					"apt-get -y install python-setuptools default-jre\n",
+					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r JenkinsLinuxSlaveLc -c config\n"
+				]]}},
+				"BlockDeviceMappings" : [
+					{ "DeviceName" : "/dev/sda1", "Ebs" : { "VolumeSize" : "30", "VolumeType" : "gp2" } }
+				]
+			}
+		},
+		"JenkinsLinuxSlaveAsg" : {
+			"Type" : "AWS::AutoScaling::AutoScalingGroup",
+			"Properties" : {
+				"VPCZoneIdentifier": [
+					{ "Ref" : "Subnet1Id" }
+				],
+				"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
+				"LaunchConfigurationName" : { "Ref" : "JenkinsLinuxSlaveLc" },
+				"MinSize" : "0",
+				"MaxSize" : "20",
+				"DesiredCapacity" : "0",
+				"Tags" : [{"Key": "Name", "Value" : "Jenkins Slave", "PropagateAtLaunch" : "True"}]
+			}
+		},
+		
 
 		"ServerSg" : {
 			"Type" : "AWS::EC2::SecurityGroup",
