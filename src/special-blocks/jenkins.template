@@ -41,11 +41,12 @@
 		"AgentInstanceType" : {
 			"Description" : "WebServer EC2 instance type",
 			"Type" : "String",
-			"Default" : "m3.medium",
+			"Default" : "t2.medium",
 			"AllowedValues": [
 				"t2.micro",
 				"t2.small",
 				"t2.medium",
+				"t2.large",
 				"m3.medium",
 				"m3.large",
 				"m3.xlarge",
@@ -66,6 +67,7 @@
 				"t2.micro",
 				"t2.small",
 				"t2.medium",
+				"t2.large",
 				"m3.medium",
 				"m3.large",
 				"m3.xlarge",
@@ -377,7 +379,7 @@
 					{ "Ref" : "AgentSg" }
 				],
 				"BlockDeviceMappings": [
-					{ "DeviceName" : "/dev/sda1", "Ebs" : { "VolumeSize" : "60", "VolumeType" : "gp2" } }
+					{ "DeviceName" : "/dev/sda1", "Ebs" : { "VolumeSize" : "80", "VolumeType" : "gp2" } }
 				],
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
 					"<script>\n",
@@ -416,7 +418,7 @@
                     "</script>"
 				]]}},
 				"BlockDeviceMappings": [
-					{ "DeviceName" : "/dev/sda1", "Ebs" : { "VolumeSize" : "60", "VolumeType" : "gp2" } },
+					{ "DeviceName" : "/dev/sda1", "Ebs" : { "VolumeSize" : "80", "VolumeType" : "gp2" } },
 					{ "DeviceName": "xvdb", "VirtualName": "ephemeral0" },
 					{ "DeviceName": "xvdc", "VirtualName": "ephemeral1" }
 				],
@@ -535,18 +537,18 @@
 		"ServerSg" : {
 			"Type" : "AWS::EC2::SecurityGroup",
 			"Properties" : {
-				"GroupDescription" : "Go Server Security Group",
+				"GroupDescription" : "Jenkins Master Server Security Group",
 				"VpcId" : { "Ref" : "VpcId"},
 				"SecurityGroupEgress" : [
 					{ "IpProtocol": "-1", "CidrIp": "0.0.0.0/0" }
 				],
-				"Tags": [{"Key": "Name", "Value" : "Go Server Security Group"}]
+				"Tags": [{"Key": "Name", "Value" : "Jenkins Master Server Security Group"}]
 			}
 		},
 		"AgentSg" : {
 			"Type" : "AWS::EC2::SecurityGroup",
 			"Properties" : {
-				"GroupDescription" : "Go Agent Security Group. No in bound traffic other than Go Server.",
+				"GroupDescription" : "Jenkins Agent Security Group. No in bound traffic other than Go Server.",
 				"SecurityGroupIngress" : [
 					{ "IpProtocol": "-1", "SourceSecurityGroupId" : {"Ref" : "ServerSg"}}
 				],
@@ -554,7 +556,7 @@
 					{ "IpProtocol": "-1", "CidrIp": "0.0.0.0/0" }
 				],
 				"VpcId" : { "Ref" : "VpcId"},
-				"Tags": [{"Key": "Name", "Value" : "Go Agent Security Group"}]
+				"Tags": [{"Key": "Name", "Value" : "Jenkins Agent Security Group"}]
 			}
 		}
 
