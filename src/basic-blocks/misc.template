@@ -10,15 +10,6 @@
 			"Type" : "String"
 		},
 
-		"PublicRouteTable" : {
-			"Description" : "VPC id [internet-access.resources.RouteTable]",
-			"Type" : "String"
-		},
-		"NatEnabledRouteTable" : {
-			"Description" : "VPC id [nat-enabled.resources.RouteTable]",
-			"Type" : "String"
-		},
-
 		"DeploymentBucketName" : {
 			"Description" : "Bucket name for storing deployment assets.",
 			"Type" : "String"
@@ -47,6 +38,7 @@
 
 		"DeploymentBucket" : {
 			"Type" : "AWS::S3::Bucket",
+			"DependsOn" : "DeploymentBucketSnsPolicy",
 			"Properties" : {
 				"AccessControl" : "LogDeliveryWrite",
 				"BucketName" : {"Ref": "DeploymentBucketName"},
@@ -55,7 +47,7 @@
 				},
 				"NotificationConfiguration" : {
 					"TopicConfigurations" : [{
-						"Topic": {"Ref":"DeploymentBucketName"},
+						"Topic": {"Ref":"DeploymentBucketNotification"},
 						"Event": "s3:ObjectCreated:*"
 					}]
 				}
@@ -128,6 +120,7 @@
 		},
 		"GenericRole": {
 			"Type": "AWS::IAM::Role",
+			"DependsOn" : "DeploymentBucket",
 			"Properties": {
 				"AssumeRolePolicyDocument": {
 					"Version": "2012-10-17",
