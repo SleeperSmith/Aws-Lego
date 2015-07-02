@@ -348,7 +348,7 @@
                                     ".\"$($java.FullName)\" -jar C:\\cfn\\bin\\swarm-client-with-dependencies.jar `\n",
                                     "    -master http://", { "Fn::GetAtt" : ["JenkinsMaster", "PrivateIp"] }, ":8080 `\n",
 									"    -username ", {"Ref": "JenkinsAgentUsername"}, " -password ", {"Ref": "JenkinsAgentPassword"}, " `\n",
-                                    "    -name \"win-$instanceId\" -description $ipv4address -fsroot Z:\\ -executors 2 -labels windows\n"
+                                    "    -name \"win-$instanceId\" -description $ipv4address -fsroot C:\\jenkins\\ -executors 2 -labels windows\n"
                                 ]]}
                             }
                         },
