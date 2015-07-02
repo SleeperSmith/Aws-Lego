@@ -79,6 +79,7 @@
 		},
 		"DeploymentBucketSnsPolicy" : {
 			"Type" : "AWS::SNS::TopicPolicy",
+			"DependsOn" : "DeploymentBucket",
 			"Properties" :
 			{
 				"PolicyDocument": {
