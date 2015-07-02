@@ -1,0 +1,211 @@
+{
+	"AWSTemplateFormatVersion" : "2010-09-09",
+
+	"Description" : "A set of subnets for advanced ELB/Web server hosting topology. Normal use cases include trio of ELB/ASG/LC for hosting websites. Advanced deployment caters to deployments such as ElastiSearch and ??Zookeeper??.",
+
+	"Parameters" : {
+
+		"VpcId" : {
+			"Description" : "VPC id [vpc.resources.Vpc]",
+			"Type" : "String"
+		},
+
+		"PublicRouteTable" : {
+			"Description" : "VPC id [internet-access.resources.RouteTable]",
+			"Type" : "String"
+		},
+		"NatEnabledRouteTable" : {
+			"Description" : "VPC id [nat-enabled.resources.RouteTable]",
+			"Type" : "String"
+		},
+
+		"DeploymentBucketName" : {
+			"Description" : "Bucket name for storing deployment assets.",
+			"Type" : "String"
+		},
+
+		"AzCount" : {
+			"Description" : "Number of AZ. Third subnet will only be created if number is 3 [vpc.outputs.AzCount]",
+			"Type" : "String"
+		},
+
+		"AvailableAzs" : {
+			"Description" : "Comma-delimited list of three IP blocks",
+			"Type" : "CommaDelimitedList",
+			"Default" : ""
+		}
+	},
+
+	"Conditions" : {
+		"IsThreeAz" : { "Fn::Equals" : [{"Ref" : "AzCount"}, "3"]},
+		"IsAzSupplied" : { "Fn::Not" : [{ "Fn::Equals" : [
+			{"Fn::Select": ["0", {"Ref" : "AvailableAzs"}]}, ""
+		]}]}
+	},
+
+	"Resources" : {
+
+		"DeploymentBucket" : {
+			"Type" : "AWS::S3::Bucket",
+			"Properties" : {
+				"AccessControl" : "LogDeliveryWrite",
+				"BucketName" : {"Ref": "DeploymentBucketName"},
+				"VersioningConfiguration" : {
+					"Status": "Enabled"
+				},
+				"NotificationConfiguration" : {
+					"TopicConfigurations" : [{
+						"Topic": {"Ref":"DeploymentBucketName"},
+						"Event": "s3:ObjectCreated:*"
+					}]
+				}
+			},
+			"DeletionPolicy" : "Retain"
+		},
+		"DeploymentBucketPolicy" : {
+			"Type" : "AWS::S3::BucketPolicy",
+			"Properties" : {
+				"Bucket" : {"Ref" : "DeploymentBucket"},
+				"PolicyDocument": {
+					"Statement":[{
+						"Action":["s3:DeleteObject","s3:DeleteObjectVersion"],
+						"Effect":"Deny",
+						"Resource": { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "DeploymentBucket" } , "/*" ]]},
+						"Principal":"*"
+					}]
+				}
+			}
+  		},
+		"DeploymentBucketNotification" : {
+			"Type" : "AWS::SNS::Topic",
+			"Properties" : {
+				"DisplayName" : "S3 and CloudFront Access Log Bucket Event Notification",
+				"TopicName" : { "Fn::Join": ["", [
+					"s3-event-", {"Ref": "DeploymentBucketName"}
+				]]}
+			}
+		},
+		"DeploymentBucketSnsPolicy" : {
+			"Type" : "AWS::SNS::TopicPolicy",
+			"Properties" :
+			{
+				"PolicyDocument": {
+					"Version": "2008-10-17",
+					"Statement": [
+					{
+						"Sid": "s3-access-file-created-sns",
+						"Effect": "Allow",
+						"Principal": {
+							"AWS" : "*"  
+						},
+						"Action": [
+							"SNS:Publish"
+						],
+						"Resource": [
+							{"Ref": "DeploymentBucketNotification" }
+						],
+						"Condition": {
+							"ArnLike": {          
+								"aws:SourceArn": { "Fn::Join": ["", [
+									"arn:aws:s3:*:*:", {"Ref": "DeploymentBucketName"}
+								]]}
+							}
+						}
+					}]
+				},
+				"Topics": [
+					{"Ref": "DeploymentBucketNotification" }
+				]
+			}
+		},
+
+		"GenericInstanceProfile": {
+			"Type": "AWS::IAM::InstanceProfile",
+			"Properties": {
+				"Path": "/generic/",
+				"Roles": [{ "Ref": "GenericRole" }]
+			}
+		},
+		"GenericRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": [ "ec2.amazonaws.com" ]
+							},
+							"Action": [ "sts:AssumeRole" ]
+						}
+					]
+				},
+				"Path": "/generic/",
+				"Policies": [{
+					"PolicyName": "DeploymentAssetAccess",
+					"PolicyDocument": {
+						"Version" : "2012-10-17",
+						"Statement": [{
+							"Action": [
+								"s3:Get*",
+								"s3:List*"
+							],
+							"Effect": "Allow",
+							"Resource": [
+								{"Fn::Join":["",["arn:aws:s3:::",{"Ref":"DeploymentBucketName"},"/*"]]},
+								{"Fn::Join":["",["arn:aws:s3:::",{"Ref":"DeploymentBucketName"}]]}
+							]
+						}]
+					}
+				}]
+			}
+		},
+
+		"HttpElbSecGroup" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Metadata" : {
+				"Comment" : {"Fn::Join": [" ", [
+					"The inbound rules are relatively permissive because whether an ELB has",
+					"public ip attached or not is enough to control whether it serves public",
+					"request or not."
+				]]}
+			},
+			"Properties" :
+			{
+				"GroupDescription" : "A generic security group for the ELBs.",
+				"SecurityGroupEgress" : [
+					{ "IpProtocol" : "6" , "DestinationSecurityGroupId" : { "Ref" : "HttpWebServerSecGroup" }, "FromPort" : "80", "ToPort" : "80" },
+					{ "IpProtocol" : "6" , "DestinationSecurityGroupId" : { "Ref" : "HttpWebServerSecGroup" }, "FromPort" : "443", "ToPort" : "443" }
+				],
+				"SecurityGroupIngress" : [
+					{ "IpProtocol" : "6" , "CidrIp": "0.0.0.0/0", "FromPort" : "80", "ToPort" : "80" },
+					{ "IpProtocol" : "6" , "CidrIp": "0.0.0.0/0", "FromPort" : "443", "ToPort" : "443" }
+				],
+				"Tags" : [{"Key": "Name", "Value" : "Elb-Web(Elb)"}],
+				"VpcId" : {"Ref":"VpcId"}
+			}
+		},
+
+		"HttpWebServerSecGroup" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Metadata" : {
+				"Comment" : {"Fn::Join": [" ", [
+					"ELBs are managed by AWS, therefore there shouldn't be any trust issue allowing",
+					"ELBs from different stacks to 'cross talk' to web servers from another",
+					"application stack."
+				]]}
+			},
+			"Properties" :
+			{
+				"GroupDescription" : "A generic security group for the web servers.",
+				"SecurityGroupEgress" : [
+					{ "IpProtocol" : "-1" , "CidrIp": "0.0.0.0/0" }
+				],
+				"SecurityGroupIngress" : [],
+				"Tags" : [{"Key": "Name", "Value" : "Elb-Web(Web)"}],
+				"VpcId" : {"Ref":"VpcId"}
+			}
+		}
+	}
+}
