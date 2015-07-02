@@ -55,7 +55,7 @@
 				},
 				"NotificationConfiguration" : {
 					"TopicConfigurations" : [{
-						"Topic": {"Ref":"DeploymentBucketName"},
+						"Topic": {"Ref":"DeploymentBucketNotification"},
 						"Event": "s3:ObjectCreated:*"
 					}]
 				}
@@ -87,6 +87,7 @@
 		},
 		"DeploymentBucketSnsPolicy" : {
 			"Type" : "AWS::SNS::TopicPolicy",
+			"DependsOn" : "DeploymentBucket",
 			"Properties" :
 			{
 				"PolicyDocument": {
@@ -128,6 +129,7 @@
 		},
 		"GenericRole": {
 			"Type": "AWS::IAM::Role",
+			"DependsOn" : "DeploymentBucket",
 			"Properties": {
 				"AssumeRolePolicyDocument": {
 					"Version": "2012-10-17",
