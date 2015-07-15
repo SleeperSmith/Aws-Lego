@@ -539,6 +539,9 @@
 			"Properties" : {
 				"GroupDescription" : "Jenkins Master Server Security Group",
 				"VpcId" : { "Ref" : "VpcId"},
+				"SecurityGroupIngress" : [
+					{ "IpProtocol": "-1", "SourceSecurityGroupId" : {"Ref" : "AgentSg"}}
+				],
 				"SecurityGroupEgress" : [
 					{ "IpProtocol": "-1", "CidrIp": "0.0.0.0/0" }
 				],
@@ -549,9 +552,6 @@
 			"Type" : "AWS::EC2::SecurityGroup",
 			"Properties" : {
 				"GroupDescription" : "Jenkins Agent Security Group. No in bound traffic other than Go Server.",
-				"SecurityGroupIngress" : [
-					{ "IpProtocol": "-1", "SourceSecurityGroupId" : {"Ref" : "ServerSg"}}
-				],
 				"SecurityGroupEgress" : [
 					{ "IpProtocol": "-1", "CidrIp": "0.0.0.0/0" }
 				],
