@@ -79,7 +79,6 @@
 		},
 		"DeploymentBucketSnsPolicy" : {
 			"Type" : "AWS::SNS::TopicPolicy",
-			"DependsOn" : "DeploymentBucket",
 			"Properties" :
 			{
 				"PolicyDocument": {
@@ -135,24 +134,29 @@
 						}
 					]
 				},
-				"Path": "/generic/",
-				"Policies": [{
-					"PolicyName": "DeploymentAssetAccess",
-					"PolicyDocument": {
-						"Version" : "2012-10-17",
-						"Statement": [{
-							"Action": [
-								"s3:Get*",
-								"s3:List*"
-							],
-							"Effect": "Allow",
-							"Resource": [
-								{"Fn::Join":["",["arn:aws:s3:::",{"Ref":"DeploymentBucketName"},"/*"]]},
-								{"Fn::Join":["",["arn:aws:s3:::",{"Ref":"DeploymentBucketName"}]]}
-							]
-						}]
-					}
-				}]
+				"Path": "/generic/"
+			}
+		},
+		"DeploymentBucketMp": {
+			"Type" : "AWS::IAM::ManagedPolicy",
+			"Properties" : {
+				"Description" : "A managed policy to allow ec2 instances to access the deployment resources.",
+				"Path" : "/generic/",
+				"Roles" : [{"Ref":"GenericRole"}],
+				"PolicyDocument" : {
+					"Version" : "2012-10-17",
+					"Statement": [{
+						"Action": [
+							"s3:Get*",
+							"s3:List*"
+						],
+						"Effect": "Allow",
+						"Resource": [
+							{"Fn::Join":["",["arn:aws:s3:::",{"Ref":"DeploymentBucketName"},"/*"]]},
+							{"Fn::Join":["",["arn:aws:s3:::",{"Ref":"DeploymentBucketName"}]]}
+						]
+					}]
+				}
 			}
 		},
 
