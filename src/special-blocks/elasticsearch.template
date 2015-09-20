@@ -6,13 +6,13 @@
 	"Parameters": {
 		"KeyPairName": {
 			"Description": "Name of an existing EC2 KeyPair to enable SSH access to the instances",
-			"Type": "String"
+			"Type": "AWS::EC2::KeyPair::KeyName"
 		},
 
 		"DataNodeInstanceType" : {
 			"Description" : "WebServer EC2 instance type",
 			"Type" : "String",
-			"Default" : "r3.large",
+			"Default" : "m3.medium",
 			"AllowedValues": [
 				"m3.medium",
 				"m3.large",
@@ -44,7 +44,7 @@
 		"EsClusterAmi": {
 			"Description": "AMI to use. Note Ubuntu is prefered.",
 			"Default": "ami-fddabdc7",
-			"Type": "String"
+			"Type": "AWS::EC2::Image::Id"
 		},
 		"EsDataDiskSize": {
 			"Description": "Size of the SSD for the elasticsearch to write to.",
@@ -71,16 +71,16 @@
 		},
 
 		"VpcId": {
-			"Description" : "VPCid associated with the subnets. [subnets.parameters.VpcId]",
-			"Type": "String"
+			"Description" : "VPCid associated with the subnets. [nat-enabled.parameters.VpcId]",
+			"Type": "AWS::EC2::VPC::Id"
 		},
 		"Subnet1Id": {
 			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet1]",
-			"Type": "String"
+			"Type": "AWS::EC2::Subnet::Id"
 		},
 		"Subnet2Id": {
 			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet2]",
-			"Type": "String"
+			"Type": "AWS::EC2::Subnet::Id"
 		},
 		"Subnet3Id": {
 			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet3]",
@@ -93,10 +93,20 @@
 			"Type": "String"
 		},
 
-		"ElasticSearchZipUrl" : {
-			"Description" : "Bucket where the elasticsearch snapshots goes into.",
+		"EsZipUrl": {
+			"Description": "Name of cluster. This is used for discovery.",
 			"Type": "String",
-			"Default": "https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-1.3.2.zip"
+			"Default": "https://download.elastic.co/elasticsearch/elasticsearch/elasticsearch-1.7.2.zip"
+		},
+		"EsSymlinkName": {
+			"Description": "Name of cluster. This is used for discovery.",
+			"Type": "String",
+			"Default": "elasticsearch-1.7.2"
+		},
+		"EsAwsPluginVersion": {
+			"Description": "Name of cluster. This is used for discovery.",
+			"Type": "String",
+			"Default": "2.7.1"
 		}
 	},
 
@@ -131,12 +141,12 @@
 					},
 					"download-elasticsearch" : {
 						"sources" : {
-							"/home/usr/local/": {"Ref": "ElasticSearchZipUrl" }
+							"/home/local/": {"Ref":"EsZipUrl"}
 						}
 					},
 					"bootstrap-elasticsearch" : {
 						"files" : {
-							"/home/usr/local/mount-disk.sh" : {
+							"/home/local/mount-disk.sh" : {
 								"content" : { "Fn::Join" : ["", [
 									"#!/bin/bash\n",
 									"mkfs -t ext4 /dev/$1\n",
@@ -146,23 +156,33 @@
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
 								"group"  : "ubuntu"
+							},
+							"/home/local/setup-es.sh" : {
+								"content" : { "Fn::Join" : ["", [
+									"#!/bin/bash\n",
+									"ln -s /home/local/", {"Ref":"EsSymlinkName"}, " /home/local/elasticsearch\n",
+									"bash elasticsearch/bin/plugin -install elasticsearch/elasticsearch-cloud-aws/", {"Ref":"EsAwsPluginVersion"}, "\n"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
 							}
 						},
 						"commands" : {
 							"1-mount-gp-ssd": {
 								"command" : "bash mount-disk.sh xvdk",
-								"cwd" : "/home/usr/local/",
+								"cwd" : "/home/local/",
 								"ignoreErrors" : "true"
 							},
 							"2-mount-ephemeral-ssd": {
 								"command" : "bash mount-disk.sh xvdb",
-								"cwd" : "/home/usr/local/",
+								"cwd" : "/home/local/",
 								"ignoreErrors" : "true"
 							},
 							"3-install-aws-plugin" : {
-								"command" : "bash plugin -install elasticsearch/elasticsearch-cloud-aws/2.3.0",
-								"cwd" : "/home/usr/local/elasticsearch-1.3.2/bin/",
-								"ignoreErrors" : "false"
+								"command" : "./setup-es.sh",
+								"cwd" : "/home/local/",
+								"ignoreErrors" : "true"
 							},
 							"4-start-elasticsearch" : {
 								"command" : "service elasticsearch start",
@@ -190,7 +210,7 @@
 					},
 					"elasticsearch-config" : {
 						"files" : {
-							"/home/usr/local/elasticsearch.yml" : {
+							"/home/local/elasticsearch.yml" : {
 								"content" : { "Fn::Join" : ["", [
 									"cluster.name: ",{"Ref":"EsConfClusterName"},"\n",
 									"index.number_of_shards: ",{"Ref":"EsConfShard"},"\n",
@@ -204,7 +224,7 @@
 									"discovery.type: ec2\n",
 									"cloud.aws.region: ", { "Ref": "AWS::Region" }, "\n",
 									"node.rack_id: ondemand\n",
-									"discovery.ec2.groups: ", { "Ref" : "EsClusterNodeSg" }, "\n"
+									"discovery.ec2.groups: ", { "Ref" : "EsClusterNodeSg" }
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
@@ -215,7 +235,7 @@
 									"script\n",
 									"    ulimit -n 40000\n",
 									"    export ES_HEAP_SIZE=",{ "Fn::FindInMap": [ "InstanceVariables", { "Ref": "DataNodeInstanceType" }, "ram" ] },"m\n",
-									"    bash /home/usr/local/elasticsearch-1.3.2/bin/elasticsearch -Des.index.store.type=mmapfs -Des.config=/home/usr/local/elasticsearch.yml\n",
+									"    bash /home/local/elasticsearch/bin/elasticsearch -Des.index.store.type=mmapfs -Des.config=/home/local/elasticsearch.yml\n",
 									"end script\n",
 									"respawn limit 3 60"
 								]]},
@@ -281,7 +301,7 @@
 					},
 					"elasticsearch-config" : {
 						"files" : {
-							"/home/usr/local/elasticsearch.yml" : {
+							"/home/local/elasticsearch.yml" : {
 								"content" : { "Fn::Join" : ["", [
 									"cluster.name: ",{"Ref":"EsConfClusterName"},"\n",
 									"index.number_of_shards: ",{"Ref":"EsConfShard"},"\n",
@@ -306,7 +326,7 @@
 									"script\n",
 									"    ulimit -n 40000\n",
 									"    export ES_HEAP_SIZE=",{ "Fn::FindInMap": [ "InstanceVariables", { "Ref": "DataNodeInstanceType" }, "ram" ] },"m\n",
-									"    bash /home/usr/local/elasticsearch-1.3.2/bin/elasticsearch -Des.index.store.type=mmapfs -Des.config=/home/usr/local/elasticsearch.yml\n",
+									"    bash /home/local/elasticsearch/bin/elasticsearch -Des.index.store.type=mmapfs -Des.config=/home/local/elasticsearch.yml\n",
 									"end script\n",
 									"respawn limit 3 60"
 								]]},
@@ -374,7 +394,7 @@
 					},
 					"elasticsearch-config" : {
 						"files" : {
-							"/home/usr/local/elasticsearch.yml" : {
+							"/home/local/elasticsearch.yml" : {
 								"content" : { "Fn::Join" : ["", [
 									"cluster.name: ",{"Ref":"EsConfClusterName"},"\n",
 									"index.number_of_shards: ",{"Ref":"EsConfShard"},"\n",
@@ -397,7 +417,7 @@
 									"script\n",
 									"    ulimit -n 40000\n",
 									"    export ES_HEAP_SIZE=",{ "Fn::FindInMap": [ "InstanceVariables", { "Ref": "MasterNodeInstanceType" }, "ram" ] },"m\n",
-									"    bash /home/usr/local/elasticsearch-1.3.2/bin/elasticsearch -Des.index.store.type=mmapfs -Des.config=/home/usr/local/elasticsearch.yml\n",
+									"    bash /home/local/elasticsearch/bin/elasticsearch -Des.index.store.type=mmapfs -Des.config=/home/local/elasticsearch.yml\n",
 									"end script\n",
 									"respawn limit 3 60"
 								]]},
