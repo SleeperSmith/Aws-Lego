@@ -6,12 +6,23 @@
 	"Parameters": {
 		"KeyPairName": {
 			"Description": "Name of an existing EC2 KeyPair to enable SSH access to the instances",
-			"Type": "String"
+			"Type": "AWS::EC2::KeyPair::KeyName"
 		},
 
+		"IsPublic": {
+			"Type" : "String",
+			"Default" : "false",
+			"AllowedValues" : ["true", "false"],
+			"Description" : "Whether the site has a public ip address and is publicly available."
+		},
+		"RepoStorageQuota" : {
+			"Description": "Disk size of MySql server.",
+			"Default": "20",
+			"Type": "Number"
+		},
 		"DbStorageQuota" : {
 			"Description": "Disk size of MySql server.",
-			"Default": "5",
+			"Default": "20",
 			"Type": "Number"
 		},
 		"DbInstanceTyp" : {
@@ -54,7 +65,7 @@
 			"Type" : "String"
 		},
 		"Hostname" : {
-			"Description" : "Hostname to access phabricator.",
+			"Description" : "Hostname to access phabricator. e.g. phabricator.your-domain.com",
 			"Type" : "String"
 		},
 
@@ -90,15 +101,35 @@
 		},
 		"UbuntuAmi": {
 			"Description": "AMI to use. Note Ubuntu is prefered.",
-			"Type": "String"
+			"Type": "AWS::EC2::Image::Id"
 		},
-		"Subnet1Id": {
+		"PvtSubnet1Id": {
 			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet1]",
-			"Type": "String"
+			"Type": "AWS::EC2::Subnet::Id"
+		},
+		"PublicSubnet1Id": {
+			"Description" : "Subnet to run HA web cluster on. [webserver.resources.Subnet1]",
+			"Type": "AWS::EC2::Subnet::Id"
 		},
 		"VpcId": {
 			"Description" : "VPCid associated with the subnets. [subnets.parameters.VpcId]",
-			"Type": "String"
+			"Type": "AWS::EC2::VPC::Id"
+		},
+
+		"PhabricatorCommit": {
+			"Description" : "Hash of the git commit to checkout.",
+			"Type": "String",
+			"Default": "04bf04d783db9019c746d7c787bdace8660afe62"
+		},
+		"LibphutilCommit": {
+			"Description" : "Hash of the git commit to checkout.",
+			"Type": "String",
+			"Default": "672c0f7d5da9be6cda619428a9da3b91a670ea2f"
+		},
+		"ArcanistCommit": {
+			"Description" : "Hash of the git commit to checkout.",
+			"Type": "String",
+			"Default": "64d03ff68bf2ff4ef99186472704df8aface9ef3"
 		}
 	},
 
@@ -108,7 +139,10 @@
 		]}]},
 		"HasRepoSnapshot" : {"Fn::Not": [{"Fn::Equals": [
 			{"Ref": "RepoDiskSnapshot"}, ""
-		]}]}
+		]}]},
+		"IsPublicCond" : {"Fn::Equals": [
+			{"Ref": "IsPublic"}, "true"
+		]}
 	},
 
 	"Resources" : {
@@ -129,7 +163,8 @@
 					"HasDbSnapshot", {"Ref": "DbSnapshot"}, {"Ref" : "AWS::NoValue"}
 				]},
 				"DBSubnetGroupName" : {"Ref":"DbSubnetGroup"},
-				"Tags" : [{"Key": "Name", "Value" : "Phabricator Database"}]
+				"Tags" : [{"Key": "Name", "Value" : "Phabricator Database"}],
+				"StorageType" : "gp2"
 			},
 			"DeletionPolicy" : "Snapshot"
 		}, 
@@ -143,7 +178,8 @@
 					"general_log": "1", 
 					"old_passwords": "0",
 					"sql_mode": "STRICT_ALL_TABLES",
-					"ft_min_word_len": "3"
+					"ft_min_word_len": "3",
+					"max_allowed_packet": "100000000"
 				}
 			} 
 		},
@@ -158,7 +194,7 @@
 					{"Ref":"AWS::NoValue"}
 				]},
 				"Tags" : [],
-				"VolumeType" : "standard"
+				"VolumeType" : "gp2"
 			},
 			"DeletionPolicy" : "Snapshot"
 		},
@@ -203,9 +239,15 @@
 					},
 					"download-files" : {
 						"sources": {
-							"/usr/local/libphutil" : "https://github.com/phacility/libphutil/tarball/master",
-							"/usr/local/arcanist" : "https://github.com/phacility/arcanist/tarball/master",
-							"/usr/local/phabricator" : "https://github.com/phacility/phabricator/tarball/master"
+							"/usr/local/libphutil" : {"Fn::Join": ["", [
+								"https://github.com/phacility/libphutil/tarball/", {"Ref": "LibphutilCommit"}
+							]]},
+							"/usr/local/arcanist" : {"Fn::Join": ["", [
+								"https://github.com/phacility/arcanist/tarball/", {"Ref": "ArcanistCommit"}
+							]]},
+							"/usr/local/phabricator" : {"Fn::Join": ["", [
+								"https://github.com/phacility/phabricator/tarball/", {"Ref": "PhabricatorCommit"}
+							]]}
 						}
 					},
 					"configure" : {
@@ -226,8 +268,8 @@
 									"#!/bin/bash\n",
 									"./config set phd.user daemon-user\n",
 									"./config set phabricator.timezone ", {"Ref": "PhabTimezone"}, "\n",
-									"./config set storage.upload-size-limit 5M\n",
 									"./config set diffusion.allow-http-auth true\n",
+									"./config set pygments.enabled true\n",
 									"./config set metamta.mail-adapter PhabricatorMailImplementationAmazonSESAdapter\n",
 									"./config set metamta.default-address ", {"Ref": "PhabMailAddress"}, "\n",
 									"./config set amazon-ses.access-key ", { "Ref": "PhabricatorServiceAccountKeySecret" }, "\n",
@@ -236,7 +278,7 @@
 									"./config set mysql.user ", {"Ref":"DbUsername"}, "\n",
 									"./config set mysql.pass ", {"Ref":"DbPassword"}, "\n",
 									"./config set mysql.host ", {"Fn::GetAtt" : [ "Database", "Endpoint.Address"]},"\n",
-									"./config set phabricator.base-uri \"", { "Ref": "Hostname" }, "\""
+									"./config set phabricator.base-uri \"https://", { "Ref": "Hostname" }, "/\""
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
@@ -245,14 +287,20 @@
 							"/usr/local/phabricator/misc.sh" : {
 								"content" : { "Fn::Join" : ["", [
 									"#!/bin/bash\n",
+									"openssl req -nodes -x509 -newkey rsa:4096 -days 35600 -sha256 ",
+										"-keyout private.key -out certificate.crt ",
+										"-subj \"/C=AU/ST=NSW/L=Sydney/O=BitClouded/CN=", { "Ref": "Hostname" }, "\"\n",
+									"pip install pygments\n",
 									"ln -s /usr/lib/git-core/git-http-backend /usr/local/phabricator/support/bin/git-http-backend\n",
 									"./bin/storage upgrade -f\n",
 									"echo \"www-data ALL=(daemon-user) SETENV: NOPASSWD: /usr/lib/git-core/git-http-backend, /usr/bin/hg\" >> /etc/sudoers\n",
+									"echo \"opcache.validate_timestamps=0\" >> /etc/php5/apache2/php.ini\n",
+									"sed -i 's/post_max_size = .*/post_max_size = 50M/' /etc/php5/apache2/php.ini\n",
 									"a2enmod rewrite\n",
 									"a2enmod ssl\n",
 									"a2dissite 000-default\n",
 									"a2ensite phabricator\n",
-									"service apache2 restart"
+									"service apache2 restart\n"
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
@@ -273,8 +321,16 @@
 							},
 							"/etc/apache2/sites-available/phabricator.conf" : {
 								"content" : { "Fn::Join" : ["", [
-									"<VirtualHost *>\n",
+									"<VirtualHost *:80>\n",
+										"ServerName ", { "Ref": "Hostname" }, "\n",
+										"Redirect permanent / https://", { "Ref": "Hostname" }, "/\n",
+									"</VirtualHost>\n",
+									"<VirtualHost *:443>\n",
+										"ServerName ", { "Ref": "Hostname" }, "\n",
+										"SSLCertificateFile \"/usr/local/phabricator/certificate.crt\"\n",
+										"SSLCertificateKeyFile \"/usr/local/phabricator/private.key\"\n",
 										"DocumentRoot /usr/local/phabricator/webroot\n",
+										"SSLEngine on\n",
 										"RewriteEngine on\n",
 										"RewriteRule ^/rsrc/(.*)     -                       [L,QSA]\n",
 										"RewriteRule ^/favicon.ico   -                       [L,QSA]\n",
@@ -305,6 +361,12 @@
 							"4-start-phd" : {
 								"command" : "./setup-phd.sh",
 								"cwd" : "/usr/local/phabricator"
+							},
+							"10-signal" : {
+								"command" : {"Fn::Join": ["",[
+									"/usr/local/bin/cfn-signal -e 0 -r \"Webserver setup complete\" '", { "Ref" : "WaitHandle" }, "'"
+								]]},
+								"cwd" : "/usr/local/phabricator"
 							}
 						}
 					}
@@ -316,8 +378,11 @@
 				"ImageId" : { "Ref" : "UbuntuAmi" },
 				"NetworkInterfaces" : [
 				{
-					"AssociatePublicIpAddress" : "false",
-					"SubnetId" : { "Ref": "Subnet1Id" },
+					"AssociatePublicIpAddress" : { "Ref" : "IsPublic" },
+					"SubnetId" : {"Fn::If":["IsPublicCond",
+						{ "Ref": "PublicSubnet1Id" },
+						{ "Ref": "PvtSubnet1Id" }
+					]},
 					"DeviceIndex" : "0",
 					"GroupSet" : [
 						{"Ref":"WebServerSg"}
@@ -326,7 +391,7 @@
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
 					"#!/bin/bash\n",
 					"apt-get update\n",
-					"apt-get -y install python-setuptools\n",
+					"apt-get -y install python-setuptools python-pip\n",
 					"apt-get -y install git mercurial subversion apache2 dpkg-dev\n",
 					"apt-get -y install php5 php5-mysql php5-gd php5-dev php5-curl php-apc php5-cli php5-json\n",
 					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
@@ -342,6 +407,18 @@
 					{"Device": "xvdb", "VolumeId" : {"Ref": "RepoDisk"}}
 				],
 				"Tags" : [{"Key": "Name", "Value" : "Phabricator"}]
+			}
+		},
+		"WaitHandle" : {
+			"Type" : "AWS::CloudFormation::WaitConditionHandle"
+		},
+
+		"WaitCondition" : {
+			"Type" : "AWS::CloudFormation::WaitCondition",
+			"DependsOn" : "PhabricatorWeb",
+			"Properties" : {
+				"Handle" : {"Ref" : "WaitHandle"},
+				"Timeout" : "1200"
 			}
 		},
 
