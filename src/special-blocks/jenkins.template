@@ -27,15 +27,26 @@
 			"Description": "AMI to use. Note Ubuntu is prefered.",
 			"Type": "String"
 		},
+		"JenkinsStateDiskSnapshot" : {
+			"Description" : "Snapshot of jenkins state disk",
+			"Type" : "String",
+			"Default" : ""
+		},
+		"JenkinsStateDiskSize" : {
+			"Description" : "Size of the disk for storing Jenkins state.",
+			"Type" : "Number",
+			"Default" : "100"
+		},
 
 		"AgentInstanceType" : {
 			"Description" : "WebServer EC2 instance type",
 			"Type" : "String",
-			"Default" : "m3.medium",
+			"Default" : "t2.medium",
 			"AllowedValues": [
 				"t2.micro",
 				"t2.small",
 				"t2.medium",
+				"t2.large",
 				"m3.medium",
 				"m3.large",
 				"m3.xlarge",
@@ -56,6 +67,7 @@
 				"t2.micro",
 				"t2.small",
 				"t2.medium",
+				"t2.large",
 				"m3.medium",
 				"m3.large",
 				"m3.xlarge",
@@ -69,7 +81,7 @@
 			"ConstraintDescription" : "must be a valid EC2 instance type."
 		},
 		"WindowsAgentAmi": {
-			"Description": "AMI to use. Note Ubuntu is prefered.",
+			"Description": "AMI to use for windows build agent.",
 			"Type": "String"
 		},
 		"LinuxAgentAmi": {
@@ -86,12 +98,12 @@
 		
 		"JenkinsSwarmJar": {
 			"Description": "Url to download Go windows agent binary from.",
-			"Default": "http://maven.jenkins-ci.org/content/repositories/releases/org/jenkins-ci/plugins/swarm-client/1.10/swarm-client-1.10-jar-with-dependencies.jar",
+			"Default": "http://maven.jenkins-ci.org/content/repositories/releases/org/jenkins-ci/plugins/swarm-client/1.24/swarm-client-1.24-jar-with-dependencies.jar",
 			"Type": "String"
 		},
 		"JenkinsSwarmMasterPlugin": {
 			"Description": "Url to download Go windows agent binary from.",
-			"Default": "http://updates.jenkins-ci.org/download/plugins/swarm/1.16/swarm.hpi",
+			"Default": "http://updates.jenkins-ci.org/download/plugins/swarm/1.24/swarm.hpi",
 			"Type": "String"
 		},
 		"JavaWindowsInstaller": {
@@ -150,8 +162,28 @@
 			"r3.8xlarge": { "ram" : "12000", "lspotprice": "1.043", "wspotprice": "1.228" }
 		}
 	},
+	"Conditions" : {
+		"HasStateSnapshot" : {"Fn::Not": [{"Fn::Equals": [
+			{"Ref": "JenkinsStateDiskSnapshot"}, ""
+		]}]}
+	},
 
 	"Resources" : {
+
+		"RepoDisk" : {
+			"Type":"AWS::EC2::Volume",
+			"Properties" : {
+				"AvailabilityZone" : {"Fn::Select":["0", { "Fn::GetAZs": "" }]},
+				"Size" : {"Ref": "JenkinsStateDiskSize"},
+				"SnapshotId" : {"Fn::If":["HasStateSnapshot",
+					{"Ref":"JenkinsStateDiskSnapshot"},
+					{"Ref":"AWS::NoValue"}
+				]},
+				"Tags" : [],
+				"VolumeType" : "gp2"
+			},
+			"DeletionPolicy" : "Snapshot"
+		},
 
 		"JenkinsMaster" : {
 			"Type" : "AWS::EC2::Instance",
@@ -171,13 +203,15 @@
 							}
 						},
 						"files" : {
-							"/home/usr/local/jenkins-install.sh" : {
+							"/home/local/jenkins-install.sh" : {
 								"content" : { "Fn::Join" : ["", [
 									"#!/bin/bash\n",
 									"wget -q -O - https://jenkins-ci.org/debian/jenkins-ci.org.key | sudo apt-key add -\n",
 									"sh -c \"echo deb http://pkg.jenkins-ci.org/debian binary/ > /etc/apt/sources.list.d/jenkins.list\"\n",
 									"apt-get update\n",
-									"apt-get install jenkins -y"
+									"apt-get install jenkins -y\n",
+									"sed -i 's/JENKINS_HOME=\\/var\\/lib\\/\\$NAME/JENKINS_HOME=\\/mnt\\/xvdb/g' /etc/default/jenkins\n",
+									"service jenkins restart"
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
@@ -186,46 +220,44 @@
 						},
 						"commands" : {
 							"1-install": {
-								"command" : "bash /home/usr/local/jenkins-install.sh",
-								"cwd" : "/home/usr/local/",
+								"command" : "./jenkins-install.sh",
+								"cwd" : "/home/local/",
 								"ignoreErrors" : "false"
 							}
 						}
 					},
 					"initialise" : {
 						"files" : {
-							"/home/usr/local/mount-disk.sh" : {
-								"content" : { "Fn::Join" : ["", [
-									"#!/bin/bash\n",
-									"mkfs -t ext4 /dev/$1\n",
-									"mkdir /mnt/$1\n",
-									"mount -t ext4 /dev/$1 /mnt/$1\n",
+							"/home/local/mount-disk.sh" : {
+								"content" : { "Fn::Join" : ["\n", [
+									"#!/bin/bash",
+									{"Fn::If":["HasStateSnapshot","","mkfs -t ext3 /dev/$1"]},
+									"mkdir /mnt/$1",
+									"mount -t ext3 /dev/$1 /mnt/$1",
 									"chmod 777 /mnt/$1"
 								]]},
 								"mode"   : "000755",
 								"owner"  : "ubuntu",
 								"group"  : "ubuntu"
 							},
-							"/var/lib/jenkins/plugins/swarm.hpi" : {
-								"source": {"Ref": "JenkinsSwarmMasterPlugin"},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							}
+							"/mnt/xvdb/plugins/swarm.hpi" : {"Fn::If":["HasStateSnapshot",
+								{"Ref":"AWS::NoValue"},
+								{
+									"source": {"Ref": "JenkinsSwarmMasterPlugin"},
+									"mode"   : "000755",
+									"owner"  : "ubuntu",
+									"group"  : "ubuntu"
+								}
+							]}
 						},
 						"commands" : {
-							"1-mount-gp-ssd": {
-								"command" : "bash mount-disk.sh xvdk",
-								"cwd" : "/home/usr/local/",
-								"ignoreErrors" : "false"
-							},
-							"2-mount-data-disk": {
+							"1-mount-data-disk": {
 								"command" : "bash mount-disk.sh xvdb",
-								"cwd" : "/home/usr/local/",
+								"cwd" : "/home/local/",
 								"ignoreErrors" : "true"
 							},
 							"3-mount-data-disk": {
-								"command" : "chmod 777 /var/lib/jenkins/plugins -R",
+								"command" : "chmod 777 /mnt/xvdb -R",
 								"ignoreErrors" : "true"
 							},
 							"4-restart-jenkins": {
@@ -254,12 +286,11 @@
 				"BlockDeviceMappings": [
 					{
 						"DeviceName" : "/dev/sda1",
-						"Ebs": { "VolumeSize": "40", "VolumeType": "gp2" }
-					},
-					{
-						"DeviceName" : "/dev/xvdk",
-						"Ebs" : { "VolumeSize" : {"Ref": "ArtifactDiskSize"}, "VolumeType" : "standard" }
+						"Ebs": { "VolumeSize": "30", "VolumeType": "gp2" }
 					}
+				],
+				"Volumes" : [
+					{"Device": "xvdb", "VolumeId" : {"Ref": "RepoDisk"}}
 				],
 				"Tags": [
 					{"Key": "Name", "Value" : "Jenkins Master"}
@@ -294,6 +325,23 @@
 									{"Ref":"TemplateBaseUrl"},"Install-JenkinsTask.ps1"
 								]]}
                             },
+							"C:\\cfn\\scripts\\jenkins-vs-install.xml": {
+                                "source" : { "Fn::Join" : ["", [
+									{"Ref":"TemplateBaseUrl"},"jenkins-vs-install.xml"
+								]]}
+                            },
+							"C:\\cfn\\scripts\\Install-VisualStudio.ps1": {
+                                "content": {"Fn::Join": ["\n",[
+                                    "Install-WindowsFeature AS-NET-Framework,WAS-NET-Environment -IncludeManagementTools -IncludeAllSubFeature",
+                                    "Invoke-WebRequest \"http://download.microsoft.com/download/1/E/0/1E0AA8D0-F5D4-45A8-9CA6-D9DC8A54DE3E/vs_ultimate.exe\" -OutFile .\\web-vs-install.exe",
+									".\".\\web-vs-install.exe\" /adminfile C:\\cfn\\scripts\\jenkins-vs-install.xml /log vs-install.log /quiet /norestart",
+									"",
+									"while((Get-Process | ? { $_.ProcessName -eq 'web-vs-install' }).Count -gt 0) {",
+									"    Write-Host 'Waiting...'",
+									"    Sleep 180",
+									"}"
+                                ]]}
+                            },
 							"C:\\cfn\\scripts\\RunAgent.ps1": {
                                 "content": {"Fn::Join": ["",[
                                     "$instanceId = Invoke-RestMethod http://169.254.169.254/latest/meta-data/instance-id\n",
@@ -302,7 +350,7 @@
                                     ".\"$($java.FullName)\" -jar C:\\cfn\\bin\\swarm-client-with-dependencies.jar `\n",
                                     "    -master http://", { "Fn::GetAtt" : ["JenkinsMaster", "PrivateIp"] }, ":8080 `\n",
 									"    -username ", {"Ref": "JenkinsAgentUsername"}, " -password ", {"Ref": "JenkinsAgentPassword"}, " `\n",
-                                    "    -name $instanceId -description $ipv4address -fsroot Z:\\ -executors 4\n"
+                                    "    -name \"win-$instanceId\" -description $ipv4address -fsroot C:\\jenkins\\ -executors 2 -labels windows\n"
                                 ]]}
                             }
                         },
@@ -311,7 +359,7 @@
                                 "command": "C:\\cfn\\bin\\java-installer.exe STATIC=0 WEB_JAVA=0 /s /L C:\\cfn\\log\\java-installer.log",
                                 "waitAfterCompletion": "0"
                             },
-							"1-install-jenkins": {
+							"3-install-jenkins": {
                                 "command": { "Fn::Join": [" ", [
 									"powershell.exe -ExecutionPolicy Unrestricted",
 									"C:\\cfn\\scripts\\Install-JenkinsTask.ps1"
@@ -331,9 +379,7 @@
 					{ "Ref" : "AgentSg" }
 				],
 				"BlockDeviceMappings": [
-					{ "DeviceName" : "/dev/sda1", "Ebs" : { "VolumeSize" : "60", "VolumeType" : "gp2" } },
-					{ "DeviceName": "xvdb", "VirtualName": "ephemeral0" },
-					{ "DeviceName": "xvdc", "VirtualName": "ephemeral1" }
+					{ "DeviceName" : "/dev/sda1", "Ebs" : { "VolumeSize" : "80", "VolumeType" : "gp2" } }
 				],
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
 					"<script>\n",
@@ -372,7 +418,7 @@
                     "</script>"
 				]]}},
 				"BlockDeviceMappings": [
-					{ "DeviceName" : "/dev/sda1", "Ebs" : { "VolumeSize" : "60", "VolumeType" : "gp2" } },
+					{ "DeviceName" : "/dev/sda1", "Ebs" : { "VolumeSize" : "80", "VolumeType" : "gp2" } },
 					{ "DeviceName": "xvdb", "VirtualName": "ephemeral0" },
 					{ "DeviceName": "xvdc", "VirtualName": "ephemeral1" }
 				],
@@ -395,29 +441,122 @@
 			}
 		},
 
+		"JenkinsLinuxSlaveLc" : {
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Metadata" : {
+				"AWS::CloudFormation::Init" : {
+					"configSets": {
+						"config": [
+							"setup"
+						]
+					},
+					"setup" : {
+						"files" : {
+							"/home/local/swarm-client-with-dependencies.jar" : {
+								"source": { "Ref": "JenkinsSwarmJar" },
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/home/local/jenkins-setup.sh" : {
+								"source" : { "Fn::Join" : ["", [
+									{"Ref":"TemplateBaseUrl"},"jenkins-setup.sh"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							},
+							"/etc/init/jenkins-slave.conf" : {
+								"content" : { "Fn::Join" : ["", [
+									"script\n",
+									"    java -jar /home/local/swarm-client-with-dependencies.jar ",
+										"-master http://", { "Fn::GetAtt" : ["JenkinsMaster", "PrivateIp"] }, ":8080 ",
+										"-username ", {"Ref": "JenkinsAgentUsername"}, " -password ", {"Ref": "JenkinsAgentPassword"}, " ",
+										"-name lin-$(curl -s http://169.254.169.254/latest/meta-data/instance-id) ",
+										"-description $(curl -s http://169.254.169.254/latest/meta-data/local-ipv4) ",
+										"-executors 2 -labels linux\n",
+									"end script\n",
+									"respawn limit 3 60"
+								]]},
+								"mode"   : "000755",
+								"owner"  : "ubuntu",
+								"group"  : "ubuntu"
+							}
+						},
+						"commands" : {
+							
+							"1-misc-configs" : {
+								"command" : "bash ./jenkins-setup.sh",
+								"cwd" : "/home/local",
+								"ignoreErrors" : "true"
+							},
+							"3-start-agent" : {
+								"command" : "service jenkins-slave start",
+								"cwd" : "/home/local"
+							}
+						}
+					}
+				}
+			},
+			"Properties": {
+				"InstanceType" : { "Ref" : "AgentInstanceType" },
+				"ImageId" : { "Ref" : "LinuxAgentAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" },
+				"AssociatePublicIpAddress": "false",
+				"SecurityGroups": [
+					{ "Ref" : "AgentSg" }
+				],
+				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+					"#!/bin/bash\n",
+					"apt-get update\n",
+					"apt-get -y install python-setuptools default-jre\n",
+					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r JenkinsLinuxSlaveLc -c config\n"
+				]]}},
+				"BlockDeviceMappings" : [
+					{ "DeviceName" : "/dev/sda1", "Ebs" : { "VolumeSize" : "30", "VolumeType" : "gp2" } }
+				]
+			}
+		},
+		"JenkinsLinuxSlaveAsg" : {
+			"Type" : "AWS::AutoScaling::AutoScalingGroup",
+			"Properties" : {
+				"VPCZoneIdentifier": [
+					{ "Ref" : "Subnet1Id" }
+				],
+				"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
+				"LaunchConfigurationName" : { "Ref" : "JenkinsLinuxSlaveLc" },
+				"MinSize" : "0",
+				"MaxSize" : "20",
+				"DesiredCapacity" : "0",
+				"Tags" : [{"Key": "Name", "Value" : "Jenkins Slave", "PropagateAtLaunch" : "True"}]
+			}
+		},
+		
+
 		"ServerSg" : {
 			"Type" : "AWS::EC2::SecurityGroup",
 			"Properties" : {
-				"GroupDescription" : "Go Server Security Group",
+				"GroupDescription" : "Jenkins Master Server Security Group",
 				"VpcId" : { "Ref" : "VpcId"},
+				"SecurityGroupIngress" : [
+					{ "IpProtocol": "-1", "SourceSecurityGroupId" : {"Ref" : "AgentSg"}}
+				],
 				"SecurityGroupEgress" : [
 					{ "IpProtocol": "-1", "CidrIp": "0.0.0.0/0" }
 				],
-				"Tags": [{"Key": "Name", "Value" : "Go Server Security Group"}]
+				"Tags": [{"Key": "Name", "Value" : "Jenkins Master Server Security Group"}]
 			}
 		},
 		"AgentSg" : {
 			"Type" : "AWS::EC2::SecurityGroup",
 			"Properties" : {
-				"GroupDescription" : "Go Agent Security Group. No in bound traffic other than Go Server.",
-				"SecurityGroupIngress" : [
-					{ "IpProtocol": "-1", "SourceSecurityGroupId" : {"Ref" : "ServerSg"}}
-				],
+				"GroupDescription" : "Jenkins Agent Security Group. No in bound traffic other than Go Server.",
 				"SecurityGroupEgress" : [
 					{ "IpProtocol": "-1", "CidrIp": "0.0.0.0/0" }
 				],
 				"VpcId" : { "Ref" : "VpcId"},
-				"Tags": [{"Key": "Name", "Value" : "Go Agent Security Group"}]
+				"Tags": [{"Key": "Name", "Value" : "Jenkins Agent Security Group"}]
 			}
 		}
 
