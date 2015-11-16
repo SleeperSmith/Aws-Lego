@@ -5,21 +5,41 @@ function New-Deployment {
     param (
         [string]$bucketname,
         [string]$projectname,
-        [string]$version,
-        [string]$deployroot
+        [string]$version = "experimental",
+        [string]$deployroot = ".\"
     )
 
     $prefix = "$projectname/$version/"
     $oldfiles = Get-S3Object -BucketName $bucketname -KeyPrefix $prefix | % {
-        Write-Host "Uploading > $($_.Key)"
+        Write-Host "Removing > $($_.Key)"
     }
     if ($oldfiles.Count -gt 0) {
         $removedObjects = Remove-S3Object -BucketName $bucketname -Keys $oldfiles -Force
     }
-    $writtenObjects = Write-S3Object -BucketName $bucketname -KeyPrefix $prefix -Folder $deployroot -Recurse
+    Write-S3Object -BucketName $bucketname -KeyPrefix $prefix -Folder $deployroot -Recurse | Out-Null
+
+    # now test the templates.
     $region = (Get-DefaultAWSRegion).Region
+    Get-S3Object -BucketName $bucketname -KeyPrefix $prefix | ? {
+        $_.Key.EndsWith(".template")
+    } | % {
+        Write-Host "Testing > $($_.Key)"
+        Write-Host (Test-CFNTemplate -TemplateURL "https://s3-$region.amazonaws.com/$bucketname/$($_.Key)")
+    } | Out-Null
+
     $deploymentUrl = "https://s3-$region.amazonaws.com/$bucketname/$projectname/$version/"
     return $deploymentUrl
+}
+
+function Get-Deployment {
+    param (
+        [string]$bucketname,
+        [string]$projectname,
+        [string]$version = "experimental",
+        [string]$region = (Get-DefaultAWSRegion).Region
+    )
+    
+    return "https://s3-$region.amazonaws.com/$bucketname/$projectname/$version/"
 }
 
 function InternalMatchTag {
@@ -207,6 +227,8 @@ function Upsert-StackLink(
 
     Write-Host == Create Stack ==    
     $Tags += @{"Key" = $templateNameTag; "Value" = $templateName}
+
+    Write-Host "See monthly cost here: $(Measure-CFNTemplateCost -Parameters $StackParameters -TemplateURL $TemplateUrl)" -ForegroundColor Green
 
     if ((Get-CFNStack | ? { $_.StackName -eq $StackName}).Count -eq 0) {
         $stackId = New-CFNStack -StackName $StackName -Parameters $StackParameters -TemplateURL $TemplateUrl -Tags $tags -Capabilities "CAPABILITY_IAM"
