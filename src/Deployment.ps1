@@ -12,6 +12,7 @@ function New-Deployment {
     $prefix = "$projectname/$version/"
     $oldfiles = Get-S3Object -BucketName $bucketname -KeyPrefix $prefix | % {
         Write-Host "Removing > $($_.Key)"
+        Remove-S3Object -BucketName $bucketname -Key $_.Key -Force
     }
     if ($oldfiles.Count -gt 0) {
         $removedObjects = Remove-S3Object -BucketName $bucketname -Keys $oldfiles -Force
