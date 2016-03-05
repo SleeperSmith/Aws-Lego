@@ -15,9 +15,9 @@
 			"Default" : "m3.medium",
 			"AllowedValues": [
 				"m3.medium",
-				"m3.large",
-				"m3.xlarge",
-				"m3.2xlarge",
+				"m4.large",
+				"m4.xlarge",
+				"m4.2xlarge",
 				"r3.large",
 				"r3.xlarge",
 				"r3.2xlarge",
@@ -35,9 +35,9 @@
 				"t2.small",
 				"t2.medium",
 				"m3.medium",
-				"m3.large",
-				"m3.xlarge",
-				"m3.2xlarge"
+				"m4.large",
+				"m4.xlarge",
+				"m4.2xlarge"
 			],
 			"ConstraintDescription" : "must be a valid EC2 instance type."
 		},
@@ -56,7 +56,7 @@
 
 		"EsConfShard": {
 			"Description": "Number of shards per index.",
-			"Default": "10",
+			"Default": "5",
 			"Type": "Number"
 		},
 		"EsConfReplica": {
@@ -80,7 +80,8 @@
 		},
 		"Subnet2Id": {
 			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet2]",
-			"Type": "AWS::EC2::Subnet::Id"
+			"Type": "String",
+			"Default": ""
 		},
 		"Subnet3Id": {
 			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet3]",
@@ -93,20 +94,10 @@
 			"Type": "String"
 		},
 
-		"EsZipUrl": {
-			"Description": "Name of cluster. This is used for discovery.",
+		"EsContainerName": {
+			"Description": "Name of container to run elasticsearch.",
 			"Type": "String",
-			"Default": "https://download.elastic.co/elasticsearch/elasticsearch/elasticsearch-1.7.2.zip"
-		},
-		"EsSymlinkName": {
-			"Description": "Name of cluster. This is used for discovery.",
-			"Type": "String",
-			"Default": "elasticsearch-1.7.2"
-		},
-		"EsAwsPluginVersion": {
-			"Description": "Name of cluster. This is used for discovery.",
-			"Type": "String",
-			"Default": "2.7.1"
+			"Default": "sleepersmith/aws-lego-elasticsearch:v0.1.0"
 		}
 	},
 
@@ -115,138 +106,22 @@
 			"t2.micro": { "ram" : "450" },
 			"t2.small": { "ram" : "950" },
 			"t2.medium": { "ram" : "1950" },
-			"m3.medium": { "ram" : "1800", "spotprice": "0.02"},
-			"m3.large": { "ram" : "3600", "spotprice": "0.03" },
-			"m3.xlarge": { "ram" : "7000", "spotprice": "0.05" },
-			"m3.2xlarge": { "ram" : "14500", "spotprice": "0.09" },
-			"r3.large": { "ram" : "7500", "spotprice": "0.03" },
-			"r3.xlarge": { "ram" : "15000", "spotprice": "0.05" },
-			"r3.2xlarge": { "ram" : "30000", "spotprice": "0.09" },
-			"r3.4xlarge": { "ram" : "60000", "spotprice": "0.17" },
-			"r3.8xlarge": { "ram" : "120000", "spotprice": "0.4" }
+			"m3.medium": { "ram" : "1800" },
+			"m4.large": { "ram" : "3600" },
+			"m4.xlarge": { "ram" : "7000" },
+			"m4.2xlarge": { "ram" : "14500" },
+			"r3.large": { "ram" : "7500" },
+			"r3.xlarge": { "ram" : "15000" },
+			"r3.2xlarge": { "ram" : "30000" },
+			"r3.4xlarge": { "ram" : "60000" },
+			"r3.8xlarge": { "ram" : "120000" }
 		}
 	},
 
 	"Resources" : {
 
-		"EsBaseLc" : {
+		"EsDataNodeGroupOneLc" : {
 			"Type" : "AWS::AutoScaling::LaunchConfiguration",
-			"Metadata" : {
-				"AWS::CloudFormation::Init" : {
-					"configSets": {
-						"config": [
-							"download-elasticsearch",
-							"bootstrap-elasticsearch"
-						]
-					},
-					"download-elasticsearch" : {
-						"sources" : {
-							"/home/local/": {"Ref":"EsZipUrl"}
-						}
-					},
-					"bootstrap-elasticsearch" : {
-						"files" : {
-							"/home/local/mount-disk.sh" : {
-								"content" : { "Fn::Join" : ["", [
-									"#!/bin/bash\n",
-									"mkfs -t ext4 /dev/$1\n",
-									"mkdir /mnt/$1\n",
-									"mount -t ext4 /dev/$1 /mnt/$1\n"
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							},
-							"/home/local/setup-es.sh" : {
-								"content" : { "Fn::Join" : ["", [
-									"#!/bin/bash\n",
-									"ln -s /home/local/", {"Ref":"EsSymlinkName"}, " /home/local/elasticsearch\n",
-									"bash elasticsearch/bin/plugin -install elasticsearch/elasticsearch-cloud-aws/", {"Ref":"EsAwsPluginVersion"}, "\n"
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							}
-						},
-						"commands" : {
-							"1-mount-gp-ssd": {
-								"command" : "bash mount-disk.sh xvdk",
-								"cwd" : "/home/local/",
-								"ignoreErrors" : "true"
-							},
-							"2-mount-ephemeral-ssd": {
-								"command" : "bash mount-disk.sh xvdb",
-								"cwd" : "/home/local/",
-								"ignoreErrors" : "true"
-							},
-							"3-install-aws-plugin" : {
-								"command" : "./setup-es.sh",
-								"cwd" : "/home/local/",
-								"ignoreErrors" : "true"
-							},
-							"4-start-elasticsearch" : {
-								"command" : "service elasticsearch start",
-								"ignoreErrors" : "false"
-							}
-						}
-					}
-				}
-			},
-			"Properties": {
-				"InstanceType" : { "Ref" : "DataNodeInstanceType" },
-				"ImageId" : { "Ref" : "EsClusterAmi" },
-				"KeyName" : { "Ref" : "KeyPairName" }
-			}
-		},
-
-		"EsDataNodeLc" : {
-			"Type" : "AWS::AutoScaling::LaunchConfiguration",
-			"Metadata" : {
-				"AWS::CloudFormation::Init" : {
-					"configSets": {
-						"config": [
-							"elasticsearch-config"
-						]
-					},
-					"elasticsearch-config" : {
-						"files" : {
-							"/home/local/elasticsearch.yml" : {
-								"content" : { "Fn::Join" : ["", [
-									"cluster.name: ",{"Ref":"EsConfClusterName"},"\n",
-									"index.number_of_shards: ",{"Ref":"EsConfShard"},"\n",
-									"index.number_of_replicas: ",{"Ref":"EsConfReplica"},"\n",
-									"path.data: /mnt/xvdk\n",
-									"path.work: /mnt/xvdb\n",
-									"path.log: /mnt/xvdk\n",
-									"node.master: false\n",
-									"node.data: true\n",
-									"bootstrap.mlockall: true\n",
-									"discovery.type: ec2\n",
-									"cloud.aws.region: ", { "Ref": "AWS::Region" }, "\n",
-									"node.rack_id: ondemand\n",
-									"discovery.ec2.groups: ", { "Ref" : "EsClusterNodeSg" }
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							},
-							"/etc/init/elasticsearch.conf" : {
-								"content" : { "Fn::Join" : ["", [
-									"script\n",
-									"    ulimit -n 40000\n",
-									"    export ES_HEAP_SIZE=",{ "Fn::FindInMap": [ "InstanceVariables", { "Ref": "DataNodeInstanceType" }, "ram" ] },"m\n",
-									"    bash /home/local/elasticsearch/bin/elasticsearch -Des.index.store.type=mmapfs -Des.config=/home/local/elasticsearch.yml\n",
-									"end script\n",
-									"respawn limit 3 60"
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							}
-						}
-					}
-				}
-			},
 			"Properties": {
 				"InstanceType" : { "Ref" : "DataNodeInstanceType" },
 				"ImageId" : { "Ref" : "EsClusterAmi" },
@@ -257,12 +132,14 @@
 				],
 				"IamInstanceProfile": { "Ref" : "EsDataNodeInstanceProfile" },
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
-					"#!/bin/bash\n",
-					"apt-get update\n",
-					"apt-get -y install python-setuptools default-jre\n",
-					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
-					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r EsDataNodeLc -c config\n",
-					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r EsBaseLc -c config"
+                    "#!/bin/bash\n",
+                    "ifconfig eth0 mtu 1500\n",
+                    "wget -qO- https://get.docker.com/ | sh\n",
+                    "docker run -p 9200:9200 -p 9300:9300 -d --cap-add=IPC_LOCK --ulimit memlock=-1:-1 -v /mnt:/mnt/xvdk ",
+                        {"Ref":"EsContainerName"}, " ", {"Ref":"EsConfClusterName"}, " ",
+                        {"Ref":"EsClusterNodeSg"}, " false true grp_one ",
+                        {"Ref":"EsConfReplica"}, " ", {"Ref":"EsConfShard"}, " ",
+                        { "Fn::FindInMap": [ "InstanceVariables", { "Ref": "DataNodeInstanceType" }, "ram" ] }
 				]]}},
 				"BlockDeviceMappings" : [
 					{
@@ -276,68 +153,22 @@
 				]
 			}
 		},
-		"EsDataNodeAsg" : {
+		"EsDataNodeGroupOneAsg" : {
 			"Type" : "AWS::AutoScaling::AutoScalingGroup",
 			"Properties" : {
 				"VPCZoneIdentifier": [
 					{ "Ref" : "Subnet1Id" }
 				],
 				"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
-				"LaunchConfigurationName" : { "Ref" : "EsDataNodeLc" },
+				"LaunchConfigurationName" : { "Ref" : "EsDataNodeGroupOneLc" },
 				"MinSize" : "1",
-				"MaxSize" : "20",
+				"MaxSize" : "10",
 				"DesiredCapacity" : "1",
-				"Tags" : [{"Key": "Name", "Value" : "Elasticsearch Cluster Data Node", "PropagateAtLaunch" : "True"}]
+				"Tags" : [{"Key": "Name", "Value" : "Elasticsearch Cluster Data Node Grp One", "PropagateAtLaunch" : "True"}]
 			}
 		},
-		"EsSpotDataNodeLc" : {
+		"EsDataNodeGroupTwoLc" : {
 			"Type" : "AWS::AutoScaling::LaunchConfiguration",
-			"Metadata" : {
-				"AWS::CloudFormation::Init" : {
-					"configSets": {
-						"config": [
-							"elasticsearch-config"
-						]
-					},
-					"elasticsearch-config" : {
-						"files" : {
-							"/home/local/elasticsearch.yml" : {
-								"content" : { "Fn::Join" : ["", [
-									"cluster.name: ",{"Ref":"EsConfClusterName"},"\n",
-									"index.number_of_shards: ",{"Ref":"EsConfShard"},"\n",
-									"index.number_of_replicas: ",{"Ref":"EsConfReplica"},"\n",
-									"path.data: /mnt/xvdk\n",
-									"path.work: /mnt/xvdb\n",
-									"path.log: /mnt/xvdk\n",
-									"node.master: false\n",
-									"node.data: true\n",
-									"bootstrap.mlockall: true\n",
-									"discovery.type: ec2\n",
-									"cloud.aws.region: ", { "Ref": "AWS::Region" }, "\n",
-									"node.rack_id: spot\n",
-									"discovery.ec2.groups: ", { "Ref" : "EsClusterNodeSg" }
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							},
-							"/etc/init/elasticsearch.conf" : {
-								"content" : { "Fn::Join" : ["", [
-									"script\n",
-									"    ulimit -n 40000\n",
-									"    export ES_HEAP_SIZE=",{ "Fn::FindInMap": [ "InstanceVariables", { "Ref": "DataNodeInstanceType" }, "ram" ] },"m\n",
-									"    bash /home/local/elasticsearch/bin/elasticsearch -Des.index.store.type=mmapfs -Des.config=/home/local/elasticsearch.yml\n",
-									"end script\n",
-									"respawn limit 3 60"
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							}
-						}
-					}
-				}
-			},
 			"Properties": {
 				"InstanceType" : { "Ref" : "DataNodeInstanceType" },
 				"ImageId" : { "Ref" : "EsClusterAmi" },
@@ -348,12 +179,14 @@
 				],
 				"IamInstanceProfile": { "Ref" : "EsDataNodeInstanceProfile" },
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
-					"#!/bin/bash\n",
-					"apt-get update\n",
-					"apt-get -y install python-setuptools default-jre\n",
-					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
-					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r EsSpotDataNodeLc -c config\n",
-					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r EsBaseLc -c config\n"
+                    "#!/bin/bash\n",
+                    "ifconfig eth0 mtu 1500\n",
+                    "wget -qO- https://get.docker.com/ | sh\n",
+                    "docker run -p 9200:9200 -p 9300:9300 -d --cap-add=IPC_LOCK --ulimit memlock=-1:-1 -v /mnt:/mnt/xvdk ",
+                        {"Ref":"EsContainerName"}, " ", {"Ref":"EsConfClusterName"}, " ",
+                        {"Ref":"EsClusterNodeSg"}, " false true grp_two ",
+                        {"Ref":"EsConfReplica"}, " ", {"Ref":"EsConfShard"}, " ",
+                        { "Fn::FindInMap": [ "InstanceVariables", { "Ref": "DataNodeInstanceType" }, "ram" ] }
 				]]}},
 				"BlockDeviceMappings" : [
 					{
@@ -364,71 +197,26 @@
 						"DeviceName" : "/dev/xvdk",
 						"Ebs" : { "VolumeSize" : {"Ref": "EsDataDiskSize"}, "VolumeType" : "gp2" }
 					}
-				],
-				"SpotPrice": { "Fn::FindInMap": [ "InstanceVariables", { "Ref": "DataNodeInstanceType" }, "spotprice" ] }
+				]
 			}
 		},
-		"EsSpotDataNodeAsg" : {
+		"EsDataNodeGroupTwoAsg" : {
 		  "Type" : "AWS::AutoScaling::AutoScalingGroup",
 		  "Properties" : {
 		    "VPCZoneIdentifier": [
 				{ "Ref" : "Subnet1Id" }
 			],
 			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
-			"LaunchConfigurationName" : { "Ref" : "EsSpotDataNodeLc" },
+			"LaunchConfigurationName" : { "Ref" : "EsDataNodeGroupTwoLc" },
 			"MinSize" : "1",
 			"MaxSize" : "10",
 			"DesiredCapacity" : "1",
-			"Tags" : [{"Key": "Name", "Value" : "Elasticsearch Cluster Spot Data Node", "PropagateAtLaunch" : "True"}]
+			"Tags" : [{"Key": "Name", "Value" : "Elasticsearch Cluster Data Node Grp Two", "PropagateAtLaunch" : "True"}]
 		  }
 		},
 
 		"EsMasterNodeLc" : {
 			"Type" : "AWS::AutoScaling::LaunchConfiguration",
-			"Metadata" : {
-				"AWS::CloudFormation::Init" : {
-					"configSets": {
-						"config": [
-							"elasticsearch-config"
-						]
-					},
-					"elasticsearch-config" : {
-						"files" : {
-							"/home/local/elasticsearch.yml" : {
-								"content" : { "Fn::Join" : ["", [
-									"cluster.name: ",{"Ref":"EsConfClusterName"},"\n",
-									"index.number_of_shards: ",{"Ref":"EsConfShard"},"\n",
-									"index.number_of_replicas: ",{"Ref":"EsConfReplica"},"\n",
-									"node.master: true\n",
-									"node.data: false\n",
-									"bootstrap.mlockall: true\n",
-									"discovery.type: ec2\n",
-									"node.rack_id: master\n",
-									"cloud.aws.region: ", { "Ref": "AWS::Region" }, "\n",
-									"cluster.routing.allocation.awareness.attributes: rack_id \n",
-									"discovery.ec2.groups: ", { "Ref" : "EsClusterNodeSg" }
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							},
-							"/etc/init/elasticsearch.conf" : {
-								"content" : { "Fn::Join" : ["", [
-									"script\n",
-									"    ulimit -n 40000\n",
-									"    export ES_HEAP_SIZE=",{ "Fn::FindInMap": [ "InstanceVariables", { "Ref": "MasterNodeInstanceType" }, "ram" ] },"m\n",
-									"    bash /home/local/elasticsearch/bin/elasticsearch -Des.index.store.type=mmapfs -Des.config=/home/local/elasticsearch.yml\n",
-									"end script\n",
-									"respawn limit 3 60"
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							}
-						}
-					}
-				}
-			},
 			"Properties": {
 				"InstanceType" : { "Ref" : "MasterNodeInstanceType" },
 				"ImageId" : { "Ref" : "EsClusterAmi" },
@@ -440,12 +228,15 @@
 				],
 				"IamInstanceProfile": { "Ref" : "EsDataNodeInstanceProfile" },
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
-					"#!/bin/bash\n",
-					"apt-get update\n",
-					"apt-get -y install python-setuptools default-jre\n",
-					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
-					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r EsMasterNodeLc -c config\n",
-					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r EsBaseLc -c config"
+                    "#!/bin/bash\n",
+                    "ifconfig eth0 mtu 1500\n",
+                    "wget -qO- https://get.docker.com/ | sh\n",
+                    "mkdir /home/xvdk\n",
+                    "docker run -p 9200:9200 -p 9300:9300 -d --cap-add=IPC_LOCK --ulimit memlock=-1:-1 -v /home/xvdk:/mnt/xvdk ",
+                        {"Ref":"EsContainerName"}, " ", {"Ref":"EsConfClusterName"}, " ",
+                        {"Ref":"EsClusterNodeSg"}, " true false master ",
+                        {"Ref":"EsConfReplica"}, " ", {"Ref":"EsConfShard"}, " ",
+                        { "Fn::FindInMap": [ "InstanceVariables", { "Ref": "MasterNodeInstanceType" }, "ram" ] }
 				]]}},
 				"BlockDeviceMappings" : [
 					{
@@ -464,7 +255,7 @@
 			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
 			"LaunchConfigurationName" : { "Ref" : "EsMasterNodeLc" },
 			"MinSize" : "1",
-			"MaxSize" : "4",
+			"MaxSize" : "7",
 			"DesiredCapacity" : "1",
 			"LoadBalancerNames" : [ { "Ref" : "EsMasterLoadBalancer" } ],
 			"Tags" : [{"Key": "Name", "Value" : "Elasticsearch Cluster Master Node", "PropagateAtLaunch" : "True"}]
