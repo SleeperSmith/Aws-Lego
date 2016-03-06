@@ -212,7 +212,103 @@
 					{"Ref": "AccessLogBucketNotification" }
 				]
 			}
-		}
+		},
+
+        "GlobalCloudTrailLog" : {
+            "Type" : "AWS::Logs::LogGroup",
+            "Properties" : {
+            }
+        },
+        "GlobalCloudTrail" : {
+            "Type" : "AWS::CloudTrail::Trail",
+            "Properties" : {
+                "CloudWatchLogsLogGroupArn" : { "Fn::GetAtt" : [ "GlobalCloudTrailLog", "Arn" ]},
+                "CloudWatchLogsRoleArn" : {"Fn::GetAtt" : ["GlobalCloudTrailLogRole", "Arn"] },
+                "EnableLogFileValidation" : "true",
+                "IncludeGlobalServiceEvents" : "true",
+                "IsLogging" : "true",
+                "IsMultiRegionTrail" : "true",
+                "S3BucketName" : {"Ref":"Raw"},
+                "SnsTopicName" : {"Ref":"GlobalCloudTrailNotification"}
+            }
+        },
+        "GlobalCloudTrailNotification" : {
+			"Type" : "AWS::SNS::Topic",
+			"Properties" : {
+				"DisplayName" : "CloudTrail notification",
+				"TopicName" : { "Fn::Join": ["", [
+					"cloudtrail-event-", {"Ref": "GlobalCloudTrailLog"}
+				]]}
+			}
+		},
+        "GlobalCloudTrailNotificationPolicy" : {
+			"Type" : "AWS::SNS::TopicPolicy",
+			"Properties" : {
+				"PolicyDocument": {
+                    "Statement": [
+                    {
+                        "Sid" : "Statement1",
+                        "Effect": "Allow",
+                        "Principal": { "AWS": "*" },
+                        "Action": [
+                            "SNS:GetTopicAttributes",
+                            "SNS:SetTopicAttributes",
+                            "SNS:AddPermission",
+                            "SNS:RemovePermission",
+                            "SNS:DeleteTopic",
+                            "SNS:Subscribe",
+                            "SNS:ListSubscriptionsByTopic",
+                            "SNS:Publish",
+                            "SNS:Receive"
+                        ],
+                        "Resource": {"Ref":"GlobalCloudTrailNotification"},
+                        "Condition": {
+                            "StringEquals": {
+                                "AWS:SourceOwner": "380048663093"
+                            }
+                        }
+                    },{
+                        "Sid" : "Statement2",
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": "cloudtrail.amazonaws.com"
+                        },
+                        "Action": "SNS:Publish",
+                        "Resource": {"Ref":"GlobalCloudTrailNotification"}
+                    }]
+                },
+				"Topics": [
+					{"Ref": "GlobalCloudTrailNotification" }
+				]
+			}
+		},
+        "GlobalCloudTrailLogRole" : {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [{
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": "cloudtrail.amazonaws.com"
+                        },
+                        "Action": "sts:AssumeRole"
+                    }]
+                },
+                "Path": "/cloudtrail/",
+                "Policies": [{
+                    "PolicyName": "root",
+                    "PolicyDocument": {
+                        "Version": "2012-10-17",
+                        "Statement": [{
+                            "Effect": "Allow",
+                            "Action": ["logs:CreateLogStream","logs:PutLogEvents"],
+                            "Resource": {"Fn::GetAtt" : ["GlobalCloudTrailLog", "Arn"] }
+                        }]
+                    }
+                }]
+            }
+        }
 	},
 	"Outputs" : {
 	}
