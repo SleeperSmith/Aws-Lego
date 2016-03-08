@@ -70,6 +70,12 @@
 		"EsHost" : {
 			"Description": "Hostname of Elasticsearch [elasticsearch.outputs.EsElb]",
 			"Type": "String"
+		},
+        "IsSubscribed" : {
+			"Description": "Hostname of Elasticsearch [elasticsearch.outputs.EsElb]",
+			"Type": "String",
+            "AllowedValues": ["subscribe", "unsubscribe"],
+            "Default": "unsubscribe"
 		}
 	},
 
@@ -90,6 +96,10 @@
 			"r3.8xlarge": { "ram" : "120000" }
 		}
 	},
+    
+    "Condition" : {
+        "Subscribe" : {"Fn::Equals" : [{"Ref" : "IsSubscribed"}, "subscribe"]}
+    },
 
 	"Resources" : {
 		"LogStreamKclLeasesTable": {
@@ -160,6 +170,7 @@
 		"VpcTrafficLogSub" : {
 			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
 			"Type" : "AWS::Logs::SubscriptionFilter",
+            "Condition" : "Subscribe",
 			"Properties" : {
 				"DestinationArn" : { "Fn::GetAtt" : ["LogStream","Arn"] },
 				"FilterPattern" : "[version, account_id, interface_id, srcaddr, dstaddr, srcport, dstport, protocol, packets, bytes, start, end, action, log_status]",
@@ -168,55 +179,27 @@
 			}
 		},
 		
-		"CloudTrailLogStreamRole" : {
-			"Type": "AWS::IAM::Role",
-			"Properties": {
-				"AssumeRolePolicyDocument" : {
-					"Version": "2012-10-17",
-					"Statement": [{
-						"Effect": "Allow",
-						"Principal": { 
-							"Service": { "Fn::Join": ["", [
-								"logs.", { "Ref": "AWS::Region" } ,".amazonaws.com"
-							]]}
-						},
-						"Action": "sts:AssumeRole"
-					}]
-				}
-			}
-		},
-		"CloudTrailLogStreamRolePolicy": {
-			"Type": "AWS::IAM::Policy",
-			"Properties": {
-				"PolicyName": "KinesisPutRecordPolicy",
-				"Roles": [ { "Ref": "CloudTrailLogStreamRole" } ],
-				"PolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Action": "kinesis:PutRecord",
-							"Resource": { "Fn::GetAtt" : ["LogStream","Arn"] }
-						},
-						{
-							"Effect": "Allow",
-							"Action": "iam:PassRole",
-							"Resource": { "Fn::Join" : ["", [
-								"arn:aws:iam::", { "Ref": "AWS::AccountId" }, ":role/", { "Ref": "CloudTrailLogStreamRole" }
-							]]}
-						}
-					]
-				}
-			}
-		},
 		"CloudTrailLogSub" : {
-			"DependsOn" : ["LogStream", "CloudTrailLogStreamRole", "CloudTrailLogStreamRolePolicy"],
+			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
 			"Type" : "AWS::Logs::SubscriptionFilter",
+            "Condition" : "Subscribe",
 			"Properties" : {
 				"DestinationArn" : { "Fn::GetAtt" : ["LogStream","Arn"] },
-				"FilterPattern" : "[version, account_id, interface_id, srcaddr, dstaddr, srcport, dstport, protocol, packets, bytes, start, end, action, log_status]",
+				"FilterPattern" : "",
 				"LogGroupName" : {"Ref":"CloudTrailLogGroupName"},
-				"RoleArn" : { "Fn::GetAtt" : [ "CloudTrailLogStreamRole", "Arn" ] }
+				"RoleArn" : { "Fn::GetAtt" : [ "LogStreamRole", "Arn" ] }
+			}
+		},
+        
+        "CloudConfigLogGroupName" : {
+			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
+			"Type" : "AWS::Logs::SubscriptionFilter",
+            "Condition" : "Subscribe",
+			"Properties" : {
+				"DestinationArn" : { "Fn::GetAtt" : ["LogStream","Arn"] },
+				"FilterPattern" : "",
+				"LogGroupName" : {"Ref":"CloudTrailLogGroupName"},
+				"RoleArn" : { "Fn::GetAtt" : [ "LogStreamRole", "Arn" ] }
 			}
 		},
 
