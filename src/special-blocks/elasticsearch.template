@@ -135,7 +135,10 @@
                     "#!/bin/bash\n",
                     "ifconfig eth0 mtu 1500\n",
                     "wget -qO- https://get.docker.com/ | sh\n",
-                    "docker run -p 9200:9200 -p 9300:9300 -d --cap-add=IPC_LOCK --ulimit memlock=-1:-1 -v /mnt:/mnt/xvdk ",
+					"mkdir /mnt/xvdk\n",
+					"mkfs -t ext4 /dev/xvdk\n",
+					"mount /dev/xvdk /mnt/xvdk\n",
+                    "docker run --restart=always -p 9200:9200 -p 9300:9300 -d --cap-add=IPC_LOCK --ulimit memlock=-1:-1 -v /mnt/xvdk:/mnt/xvdk ",
                         {"Ref":"EsContainerName"}, " ", {"Ref":"EsConfClusterName"}, " ",
                         {"Ref":"EsClusterNodeSg"}, " false true grp_one ",
                         {"Ref":"EsConfReplica"}, " ", {"Ref":"EsConfShard"}, " ",
@@ -163,7 +166,6 @@
 				"LaunchConfigurationName" : { "Ref" : "EsDataNodeGroupOneLc" },
 				"MinSize" : "1",
 				"MaxSize" : "10",
-				"DesiredCapacity" : "1",
 				"Tags" : [{"Key": "Name", "Value" : "Elasticsearch Cluster Data Node Grp One", "PropagateAtLaunch" : "True"}]
 			}
 		},
@@ -182,7 +184,10 @@
                     "#!/bin/bash\n",
                     "ifconfig eth0 mtu 1500\n",
                     "wget -qO- https://get.docker.com/ | sh\n",
-                    "docker run -p 9200:9200 -p 9300:9300 -d --cap-add=IPC_LOCK --ulimit memlock=-1:-1 -v /mnt:/mnt/xvdk ",
+					"mkdir /mnt/xvdk\n",
+					"mkfs -t ext4 /dev/xvdk\n",
+					"mount /dev/xvdk /mnt/xvdk\n",
+                    "docker run --restart=always -p 9200:9200 -p 9300:9300 -d --cap-add=IPC_LOCK --ulimit memlock=-1:-1 -v /mnt/xvdk:/mnt/xvdk ",
                         {"Ref":"EsContainerName"}, " ", {"Ref":"EsConfClusterName"}, " ",
                         {"Ref":"EsClusterNodeSg"}, " false true grp_two ",
                         {"Ref":"EsConfReplica"}, " ", {"Ref":"EsConfShard"}, " ",
@@ -210,7 +215,6 @@
 			"LaunchConfigurationName" : { "Ref" : "EsDataNodeGroupTwoLc" },
 			"MinSize" : "1",
 			"MaxSize" : "10",
-			"DesiredCapacity" : "1",
 			"Tags" : [{"Key": "Name", "Value" : "Elasticsearch Cluster Data Node Grp Two", "PropagateAtLaunch" : "True"}]
 		  }
 		},
@@ -232,11 +236,13 @@
                     "ifconfig eth0 mtu 1500\n",
                     "wget -qO- https://get.docker.com/ | sh\n",
                     "mkdir /home/xvdk\n",
-                    "docker run -p 9200:9200 -p 9300:9300 -d --cap-add=IPC_LOCK --ulimit memlock=-1:-1 -v /home/xvdk:/mnt/xvdk ",
+                    "docker run --restart=always -p 9200:9200 -p 9300:9300 -d --cap-add=IPC_LOCK --ulimit memlock=-1:-1 -v /home/xvdk:/mnt/xvdk ",
                         {"Ref":"EsContainerName"}, " ", {"Ref":"EsConfClusterName"}, " ",
                         {"Ref":"EsClusterNodeSg"}, " true false master ",
                         {"Ref":"EsConfReplica"}, " ", {"Ref":"EsConfShard"}, " ",
-                        { "Fn::FindInMap": [ "InstanceVariables", { "Ref": "MasterNodeInstanceType" }, "ram" ] }
+                        { "Fn::FindInMap": [ "InstanceVariables", { "Ref": "MasterNodeInstanceType" }, "ram" ] }, "\n",
+					"docker run --name kibana -p 80:5601 -d --restart=always -e ELASTICSEARCH_URL=http://",
+					{"Fn::GetAtt":["EsMasterLoadBalancer","DNSName"]}, ":9200 kibana\n"
 				]]}},
 				"BlockDeviceMappings" : [
 					{
@@ -256,7 +262,6 @@
 			"LaunchConfigurationName" : { "Ref" : "EsMasterNodeLc" },
 			"MinSize" : "1",
 			"MaxSize" : "7",
-			"DesiredCapacity" : "1",
 			"LoadBalancerNames" : [ { "Ref" : "EsMasterLoadBalancer" } ],
 			"Tags" : [{"Key": "Name", "Value" : "Elasticsearch Cluster Master Node", "PropagateAtLaunch" : "True"}]
 		  }
@@ -276,6 +281,11 @@
 				{
 					"LoadBalancerPort" : "9200",
 					"InstancePort" : "9200",
+					"Protocol" : "HTTP"
+				},
+				{
+					"LoadBalancerPort" : "80",
+					"InstancePort" : "80",
 					"Protocol" : "HTTP"
 				}],
 				"HealthCheck" : {
@@ -397,7 +407,16 @@
 				"SourceSecurityGroupId" : { "Ref" : "EsElbSg" }
 			}
 		},
-
+		"EsMasterElbKibanaIngress" : {
+			"Type" : "AWS::EC2::SecurityGroupIngress",
+			"Properties" : {
+				"IpProtocol" : "tcp",
+				"ToPort" : "9200",
+				"FromPort" : "9200",
+				"GroupId" : { "Ref" : "EsElbSg" },
+				"SourceSecurityGroupId" : { "Ref" : "EsClusterGatewayNodeSg" }
+			}
+		},
 		"EsElbSg" : {
 			"Type" : "AWS::EC2::SecurityGroup",
 			"Properties" : {
