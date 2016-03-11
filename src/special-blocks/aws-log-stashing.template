@@ -53,7 +53,7 @@
 		"LogstashDocker": {
 			"Description": "Name of cluster. This is used for discovery.",
 			"Type": "String",
-			"Default": "sleepersmith/temp-logstash"
+			"Default": "sleepersmith/aws-lego-cwlstashing"
 		},
 		"VpcTrafficLogGroupName" : {
 			"Description": "Name of VPC traffic log group. [vpc.resources.VpcTrafficLog]",
@@ -224,8 +224,7 @@
 				"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
 				"LaunchConfigurationName" : { "Ref" : "LogstashLc" },
 				"MinSize" : "1",
-				"MaxSize" : "20",
-				"DesiredCapacity" : "1",
+				"MaxSize" : "5",
 				"Tags" : [{"Key": "Name", "Value" : "Logstash", "PropagateAtLaunch" : "True"}]
 			}
 		},
@@ -244,7 +243,7 @@
                     "#!/bin/bash\n",
                     "ifconfig eth0 mtu 1500\n",
                     "wget -qO- https://get.docker.com/ | sh\n",
-                    "#docker run ", {"Ref":"LogstashDocker"}, " ",
+                    "docker run -d --name logstash-kinesis --restart=always ", {"Ref":"LogstashDocker"}, " ",
                         {"Ref":"LogStream"}, " ",
 						{"Ref": "AWS::StackName"}, " ",
                         {"Ref":"EsHost"}, " ",
@@ -439,7 +438,6 @@
 				"LaunchConfigurationName" : { "Ref" : "LogstashSqsLc" },
 				"MinSize" : "1",
 				"MaxSize" : "20",
-				"DesiredCapacity" : "1",
 				"Tags" : [{"Key": "Name", "Value" : "Logstash Sqs", "PropagateAtLaunch" : "True"}]
 			}
 		},
@@ -458,7 +456,7 @@
                     "#!/bin/bash\n",
                     "ifconfig eth0 mtu 1500\n",
                     "wget -qO- https://get.docker.com/ | sh\n",
-                    "docker run -d --restart=always ", {"Ref":"LogstashSqsDocker"}, " ",
+                    "docker run --name logstash-sqs3 -d --restart=always ", {"Ref":"LogstashSqsDocker"}, " ",
                         {"Fn::GetAtt":["LogQueue","QueueName"]}, " ",
 						{"Ref":"EsHost"}, " ",
                         {"Ref":"RawLogBucketName"}, " ",
