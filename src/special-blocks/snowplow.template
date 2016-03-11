@@ -1,0 +1,1136 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Metadata": {
+    "AWS::CloudFormation::Designer": {
+      "a63e5ced-a313-4abc-9a8e-2293ad92808c": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 830,
+          "y": 60
+        },
+        "z": 0,
+        "embeds": []
+      },
+      "e6b700be-065c-4d90-b50f-86ea75c94007": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 1320,
+          "y": 60
+        },
+        "z": 0,
+        "embeds": []
+      },
+      "b9408673-33b0-4183-90a3-c7c41ea911ff": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 1080,
+          "y": 350
+        },
+        "z": 0,
+        "embeds": [],
+        "isassociatedwith": [
+          "10d449c4-2b3a-4f0a-901e-0e4015e4e203"
+        ]
+      },
+      "10d449c4-2b3a-4f0a-901e-0e4015e4e203": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 1080,
+          "y": 210
+        },
+        "z": 0,
+        "embeds": []
+      },
+      "08d4be05-b19c-419e-b247-de80a7a40e9d": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 1080,
+          "y": 60
+        },
+        "z": 0,
+        "embeds": [],
+        "isassociatedwith": [
+          "10d449c4-2b3a-4f0a-901e-0e4015e4e203"
+        ]
+      },
+      "326553e7-25ba-4bd2-a38f-4ec8de7ddad9": {
+        "source": {
+          "id": "08d4be05-b19c-419e-b247-de80a7a40e9d"
+        },
+        "target": {
+          "id": "10d449c4-2b3a-4f0a-901e-0e4015e4e203"
+        },
+        "z": 2
+      },
+      "04554e3c-343a-4f2f-aab6-1fac369f673c": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 1550,
+          "y": -80
+        },
+        "z": 0,
+        "embeds": []
+      },
+      "4264844a-5d00-49a0-bfc3-fea1cf9a3f8a": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 600,
+          "y": 490
+        },
+        "z": 0,
+        "embeds": [],
+        "isconnectedto": [
+          "82de6017-46dd-4cab-8ae5-5d637962f42c"
+        ],
+        "isassociatedwith": [
+          "fb62b3d2-d3cb-41ab-8b4e-e8b6d956198b"
+        ],
+        "isrelatedto": [
+          "16ee8a15-2263-42dc-8821-05d7c2ae1bd9",
+          "80ea7790-ce6e-4d95-8869-1f7a37ba6eb7"
+        ]
+      },
+      "fb62b3d2-d3cb-41ab-8b4e-e8b6d956198b": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 600,
+          "y": 640
+        },
+        "z": 0,
+        "embeds": []
+      },
+      "555cdab8-2415-491f-b6c5-6182312fbcea": {
+        "source": {
+          "id": "b9408673-33b0-4183-90a3-c7c41ea911ff"
+        },
+        "target": {
+          "id": "10d449c4-2b3a-4f0a-901e-0e4015e4e203"
+        },
+        "z": 3
+      },
+      "82de6017-46dd-4cab-8ae5-5d637962f42c": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 320,
+          "y": 490
+        },
+        "z": 0,
+        "embeds": []
+      },
+      "b1972a68-b291-4929-9d4a-4bf06bfc87d8": {
+        "source": {
+          "id": "4264844a-5d00-49a0-bfc3-fea1cf9a3f8a"
+        },
+        "target": {
+          "id": "82de6017-46dd-4cab-8ae5-5d637962f42c"
+        },
+        "z": 4
+      },
+      "29369e48-9d63-453e-9bab-9d688f812102": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 1550,
+          "y": 60
+        },
+        "z": 0,
+        "embeds": [],
+        "isassociatedwith": [
+          "137e17a3-4765-4d08-b2f8-95e9261e6463"
+        ]
+      },
+      "10cc023c-eff2-493e-9127-e4467f1a7e96": {
+        "source": {
+          "id": "29369e48-9d63-453e-9bab-9d688f812102"
+        },
+        "target": {
+          "id": "10d449c4-2b3a-4f0a-901e-0e4015e4e203"
+        },
+        "z": 5
+      },
+      "d68c3cee-588c-42f5-a847-5594ff234a38": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 1080,
+          "y": -90
+        },
+        "z": 0,
+        "embeds": []
+      },
+      "16ee8a15-2263-42dc-8821-05d7c2ae1bd9": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 600,
+          "y": 200
+        },
+        "z": 0,
+        "embeds": []
+      },
+      "80ea7790-ce6e-4d95-8869-1f7a37ba6eb7": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 600,
+          "y": 350
+        },
+        "z": 0,
+        "embeds": [],
+        "isassociatedwith": [
+          "16ee8a15-2263-42dc-8821-05d7c2ae1bd9"
+        ]
+      },
+      "ee9fe9e0-4442-46c1-9340-196cd52c6491": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 600,
+          "y": 60
+        },
+        "z": 0,
+        "embeds": [],
+        "isassociatedwith": [
+          "16ee8a15-2263-42dc-8821-05d7c2ae1bd9"
+        ]
+      },
+      "106d3c70-2806-45d8-90c0-acf116d0ed03": {
+        "source": {
+          "id": "80ea7790-ce6e-4d95-8869-1f7a37ba6eb7"
+        },
+        "target": {
+          "id": "16ee8a15-2263-42dc-8821-05d7c2ae1bd9"
+        },
+        "z": 11
+      },
+      "0ceb5f5f-1971-4d95-82f4-7444e3bf1e6c": {
+        "source": {
+          "id": "ee9fe9e0-4442-46c1-9340-196cd52c6491"
+        },
+        "target": {
+          "id": "16ee8a15-2263-42dc-8821-05d7c2ae1bd9"
+        },
+        "z": 12
+      },
+      "08691fc9-df6d-4a8a-a3e2-12bf713b8cc8": {
+        "source": {
+          "id": "4264844a-5d00-49a0-bfc3-fea1cf9a3f8a"
+        },
+        "target": {
+          "id": "fb62b3d2-d3cb-41ab-8b4e-e8b6d956198b"
+        },
+        "z": 13
+      },
+      "93ba7422-62a1-4fce-8189-135a018fe4d6": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 1080,
+          "y": 490
+        },
+        "z": 0,
+        "embeds": [],
+        "isassociatedwith": [
+          "a23dea75-9ab0-4e45-8b3b-8e27846e1c03"
+        ],
+        "isrelatedto": [
+          "b9408673-33b0-4183-90a3-c7c41ea911ff"
+        ]
+      },
+      "a23dea75-9ab0-4e45-8b3b-8e27846e1c03": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 1080,
+          "y": 640
+        },
+        "z": 0,
+        "embeds": [],
+        "ismemberof": [
+          "e12ef432-322b-4947-b9c3-9470a353b0f1"
+        ]
+      },
+      "137e17a3-4765-4d08-b2f8-95e9261e6463": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 1550,
+          "y": 210
+        },
+        "z": 0,
+        "embeds": []
+      },
+      "f212dc32-148d-4049-a1dc-3b71c9f0e47c": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 1550,
+          "y": 360
+        },
+        "z": 0,
+        "embeds": [],
+        "isassociatedwith": [
+          "137e17a3-4765-4d08-b2f8-95e9261e6463"
+        ]
+      },
+      "c156f9d3-209b-46d1-a250-d04c3dfc278a": {
+        "source": {
+          "id": "f212dc32-148d-4049-a1dc-3b71c9f0e47c"
+        },
+        "target": {
+          "id": "137e17a3-4765-4d08-b2f8-95e9261e6463"
+        },
+        "z": 14
+      },
+      "866ef9d7-6385-4f43-a432-65721fc6f2b7": {
+        "source": {
+          "id": "93ba7422-62a1-4fce-8189-135a018fe4d6"
+        },
+        "target": {
+          "id": "a23dea75-9ab0-4e45-8b3b-8e27846e1c03"
+        },
+        "z": 15
+      },
+      "cb58d9e1-7db3-43b5-93c2-0fbaf1b6e74f": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 1550,
+          "y": 500
+        },
+        "z": 0,
+        "embeds": [],
+        "isassociatedwith": [
+          "7aab4386-6c4e-43eb-b440-18cf393a6b0f"
+        ],
+        "isrelatedto": [
+          "f212dc32-148d-4049-a1dc-3b71c9f0e47c"
+        ]
+      },
+      "7aab4386-6c4e-43eb-b440-18cf393a6b0f": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 1550,
+          "y": 640
+        },
+        "z": 0,
+        "embeds": [],
+        "ismemberof": [
+          "e12ef432-322b-4947-b9c3-9470a353b0f1"
+        ]
+      },
+      "d664e454-174f-4114-b890-c9a7c629f130": {
+        "source": {
+          "id": "cb58d9e1-7db3-43b5-93c2-0fbaf1b6e74f"
+        },
+        "target": {
+          "id": "7aab4386-6c4e-43eb-b440-18cf393a6b0f"
+        },
+        "z": 16
+      },
+      "8108e1e3-a521-4a67-80dd-94c1c9bbd90a": {
+        "source": {
+          "id": "08d4be05-b19c-419e-b247-de80a7a40e9d"
+        },
+        "target": {
+          "id": "10d449c4-2b3a-4f0a-901e-0e4015e4e203"
+        },
+        "z": 17
+      },
+      "81e16e76-4780-41c7-88b8-017fd36ade73": {
+        "source": {
+          "id": "29369e48-9d63-453e-9bab-9d688f812102"
+        },
+        "target": {
+          "id": "137e17a3-4765-4d08-b2f8-95e9261e6463"
+        },
+        "z": 18
+      },
+      "e12ef432-322b-4947-b9c3-9470a353b0f1": {
+        "size": {
+          "width": 60,
+          "height": 60
+        },
+        "position": {
+          "x": 1320,
+          "y": 640
+        },
+        "z": 0,
+        "embeds": []
+      },
+      "f4f91636-503d-475f-92ad-d2c7f5ddc133": {
+        "source": {
+          "id": "a23dea75-9ab0-4e45-8b3b-8e27846e1c03"
+        },
+        "target": {
+          "id": "e12ef432-322b-4947-b9c3-9470a353b0f1"
+        },
+        "z": 11
+      },
+      "93a92615-cb97-4500-b439-6ed953367598": {
+        "source": {
+          "id": "7aab4386-6c4e-43eb-b440-18cf393a6b0f"
+        },
+        "target": {
+          "id": "e12ef432-322b-4947-b9c3-9470a353b0f1"
+        },
+        "z": 12
+      }
+    }
+  },
+  "Conditions" : {
+		"IsPublicFacingCondition" : {
+			"Fn::Equals": [{"Ref":"IsPublicFacing"},"true"]
+		}
+	},
+  "Resources": {
+    "RawStream": {
+      "Type": "AWS::Kinesis::Stream",
+      "Properties": {
+        "ShardCount":"1"
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "a63e5ced-a313-4abc-9a8e-2293ad92808c"
+        }
+      }
+    },
+    "EnrichedStream": {
+      "Type": "AWS::Kinesis::Stream",
+      "Properties": {
+	    "ShardCount":"1"
+	  },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "e6b700be-065c-4d90-b50f-86ea75c94007"
+        }
+      }
+    },
+    "EnrichStreamPermission": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Properties": {
+        "Roles": [
+          {
+            "Ref": "EnrichStreamRole"
+          }
+        ],
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Action": [
+                "kinesis:DescribeStream",
+                "kinesis:MergeShards",
+                "kinesis:PutRecord",
+                "kinesis:PutRecords",
+                "kinesis:SplitShard"
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "EnrichedStream",
+                    "Arn"
+                  ]
+                }
+              ]
+            },
+            {
+              "Action": [
+                "kinesis:DescribeStream",
+                "kinesis:GetShardIterator",
+                "kinesis:GetRecords",
+                "kinesis:MergeShards",
+                "kinesis:SplitShard"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "RawStream",
+                  "Arn"
+                ]
+              }
+            },
+            {
+              "Action": [
+                "dynamodb:BatchGetItem",
+                "dynamodb:BatchWriteItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:DescribeStream",
+                "dynamodb:DescribeTable",
+                "dynamodb:GetItem",
+                "dynamodb:GetRecords",
+                "dynamodb:GetShardIterator",
+                "dynamodb:ListStreams",
+                "dynamodb:ListTables",
+                "dynamodb:PutItem",
+                "dynamodb:Query",
+                "dynamodb:Scan",
+                "dynamodb:UpdateItem",
+                "dynamodb:UpdateTable"
+              ],
+              "Effect": "Allow",
+              "Resource": { "Fn::Join": ["", [
+								"arn:aws:dynamodb:",{ "Ref": "AWS::Region" },":", {"Ref": "AWS::AccountId"},":table/", { "Ref": "RawReadCheckpoint" }
+							]]}
+            }
+          ]
+        }
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "08d4be05-b19c-419e-b247-de80a7a40e9d"
+        }
+      }
+    },
+    "EnrichedStreamPermission": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Properties": {
+        "Roles": [
+          {
+            "Ref": "EnrichedStreamRole"
+          }
+        ],
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Action": [
+                "kinesis:DescribeStream",
+                "kinesis:GetShardIterator",
+                "kinesis:GetRecords",
+                "kinesis:MergeShards",
+                "kinesis:SplitShard"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "EnrichedStream",
+                  "Arn"
+                ]
+              }
+            },
+            {
+              "Action": [
+                "dynamodb:BatchGetItem",
+                "dynamodb:BatchWriteItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:DescribeStream",
+                "dynamodb:DescribeTable",
+                "dynamodb:GetItem",
+                "dynamodb:GetRecords",
+                "dynamodb:GetShardIterator",
+                "dynamodb:ListStreams",
+                "dynamodb:ListTables",
+                "dynamodb:PutItem",
+                "dynamodb:Query",
+                "dynamodb:Scan",
+                "dynamodb:UpdateItem",
+                "dynamodb:UpdateTable"
+              ],
+              "Effect": "Allow",
+              "Resource": { "Fn::Join": ["", [
+								"arn:aws:dynamodb:",{ "Ref": "AWS::Region" },":", {"Ref": "AWS::AccountId"},":table/", { "Ref": "EnrichedReadCheckpoint" }
+							]]}
+            }
+          ]
+        }
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "29369e48-9d63-453e-9bab-9d688f812102"
+        }
+      }
+    },
+    "RawReadCheckpoint": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "TableName": {
+          "Ref": "AWS::StackName"
+        },
+        "ProvisionedThroughput": {
+          "ReadCapacityUnits": "10",
+          "WriteCapacityUnits": "10"
+        },
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "leaseKey",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "leaseKey",
+            "KeyType": "HASH"
+          }
+        ],
+		"TableName": {"Ref":"RawReadCheckpointDdbName"}
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "d68c3cee-588c-42f5-a847-5594ff234a38"
+        }
+      }
+    },
+    "EnrichedReadCheckpoint": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "TableName": {
+          "Ref": "AWS::StackName"
+        },
+        "ProvisionedThroughput": {
+          "ReadCapacityUnits": "10",
+          "WriteCapacityUnits": "10"
+        },
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "leaseKey",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "leaseKey",
+            "KeyType": "HASH"
+          }
+        ],
+		"TableName": {"Ref":"EnrichedReadCheckpointDdbName"}
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "04554e3c-343a-4f2f-aab6-1fac369f673c"
+        }
+      }
+    },
+    "EventCollectionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "ec2.amazonaws.com"
+                ]
+              },
+              "Action": [
+                "sts:AssumeRole"
+              ]
+            }
+          ]
+        },
+        "Path": "/analytics/snowplow/"
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "16ee8a15-2263-42dc-8821-05d7c2ae1bd9"
+        }
+      }
+    },
+    "EventCollectionGroup": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "AvailabilityZones": ["ap-southeast-2a","ap-southeast-2b"],
+        "MinSize": "1",
+        "MaxSize": "10",
+        "DesiredCapacity": "1",
+        "LoadBalancerNames": [
+          {
+            "Ref": "EventCollectionEndPoint"
+          }
+        ],
+        "LaunchConfigurationName": {
+          "Ref": "EventCollectionLc"
+        },
+		"VPCZoneIdentifier" : [
+			{"Ref":"WebServerSubnet1Id"},
+			{"Ref":"WebServerSubnet2Id"}
+		]
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "4264844a-5d00-49a0-bfc3-fea1cf9a3f8a"
+        }
+      }
+    },
+    "EventCollectionLc": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Properties": {
+        "KeyName": {
+          "Ref": "KeyPairName"
+        },
+        "ImageId": {
+          "Ref": "UbuntuAmi"
+        },
+        "IamInstanceProfile": {
+          "Ref": "EventCollectionIp"
+        },
+        "InstanceType": {
+          "Ref": "InstanceType"
+        },
+        "SecurityGroups": [
+          {
+            "Ref": "WebServerSg"
+          }
+        ]
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "fb62b3d2-d3cb-41ab-8b4e-e8b6d956198b"
+        }
+      }
+    },
+    "EventCollectionPermission": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Properties": {
+        "Roles": [
+          {
+            "Ref": "EventCollectionRole"
+          }
+        ],
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Action": [
+                "kinesis:DescribeStream",
+                "kinesis:MergeShards",
+                "kinesis:PutRecord",
+                "kinesis:PutRecords",
+                "kinesis:SplitShard"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "RawStream",
+                  "Arn"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "ee9fe9e0-4442-46c1-9340-196cd52c6491"
+        }
+      }
+    },
+    "EnrichStreamRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "ec2.amazonaws.com"
+                ]
+              },
+              "Action": [
+                "sts:AssumeRole"
+              ]
+            }
+          ]
+        },
+        "Path": "/analytics/snowplow/"
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "10d449c4-2b3a-4f0a-901e-0e4015e4e203"
+        }
+      }
+    },
+    "EnrichStreamIp": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Roles": [
+          {
+            "Ref": "EnrichStreamRole"
+          }
+        ],
+        "Path": "/analytics/snowplow/"
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "b9408673-33b0-4183-90a3-c7c41ea911ff"
+        }
+      }
+    },
+    "EventCollectionIp": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Roles": [
+          {
+            "Ref": "EventCollectionRole"
+          }
+        ],
+        "Path": "/analytics/snowplow/"
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "80ea7790-ce6e-4d95-8869-1f7a37ba6eb7"
+        }
+      }
+    },
+    "EnrichStreamGroup": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "AvailabilityZones": ["ap-southeast-2a","ap-southeast-2b"],
+        "MinSize": "1",
+        "MaxSize": "10",
+        "DesiredCapacity": "1",
+        "LaunchConfigurationName": {
+          "Ref": "EnrichStreamLc"
+        },
+		"VPCZoneIdentifier" : [
+			{"Ref":"WebServerSubnet1Id"},
+			{"Ref":"WebServerSubnet2Id"}
+		]
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "93ba7422-62a1-4fce-8189-135a018fe4d6"
+        }
+      }
+    },
+    "EnrichStreamLc": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Properties": {
+        "KeyName": {
+          "Ref": "KeyPairName"
+        },
+        "ImageId": {
+          "Ref": "UbuntuAmi"
+        },
+        "InstanceType": {
+          "Ref": "InstanceType"
+        },
+        "IamInstanceProfile": {
+          "Ref": "EnrichStreamIp"
+        },
+        "SecurityGroups": [
+          {
+            "Ref": "Outbound"
+          }
+        ]
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "a23dea75-9ab0-4e45-8b3b-8e27846e1c03"
+        }
+      }
+    },
+    "EnrichedStreamRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "ec2.amazonaws.com"
+                ]
+              },
+              "Action": [
+                "sts:AssumeRole"
+              ]
+            }
+          ]
+        },
+        "Path": "/analytics/snowplow/"
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "137e17a3-4765-4d08-b2f8-95e9261e6463"
+        }
+      }
+    },
+    "EnrichedStreamIp": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Roles": [
+          {
+            "Ref": "EnrichedStreamRole"
+          }
+        ],
+        "Path": "/analytics/snowplow/"
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "f212dc32-148d-4049-a1dc-3b71c9f0e47c"
+        }
+      }
+    },
+    "EnrichedStreamGroup": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "AvailabilityZones": ["ap-southeast-2a","ap-southeast-2b"],
+        "MinSize": "1",
+        "MaxSize": "10",
+        "DesiredCapacity": "1",
+        "LaunchConfigurationName": {
+          "Ref": "EnrichedStreamLc"
+        },
+		"VPCZoneIdentifier" : [
+			{"Ref":"WebServerSubnet1Id"},
+			{"Ref":"WebServerSubnet2Id"}
+		]
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "cb58d9e1-7db3-43b5-93c2-0fbaf1b6e74f"
+        }
+      }
+    },
+    "EnrichedStreamLc": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Properties": {
+        "KeyName": {
+          "Ref": "KeyPairName"
+        },
+        "IamInstanceProfile": {
+          "Ref": "EnrichedStreamIp"
+        },
+        "ImageId": {
+          "Ref": "UbuntuAmi"
+        },
+        "InstanceType": {
+          "Ref": "InstanceType"
+        },
+        "SecurityGroups": [
+          {
+            "Ref": "Outbound"
+          }
+        ]
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "7aab4386-6c4e-43eb-b440-18cf393a6b0f"
+        }
+      }
+    },
+    "EventCollectionEndPoint": {
+      "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties": {
+          "Subnets": [
+            {
+              "Ref": "ElbSubnet1Id"
+            },
+            {
+              "Ref": "ElbSubnet2Id"
+            }
+          ],
+          "Listeners": [
+            {
+              "LoadBalancerPort": "80",
+              "InstancePort": "80",
+              "Protocol": "HTTP"
+            }
+          ],
+          "HealthCheck": {
+            "Target": "HTTP:80/health",
+            "HealthyThreshold": "3",
+            "UnhealthyThreshold": "5",
+            "Interval": "30",
+            "Timeout": "5"
+          },
+          "AccessLoggingPolicy": {
+            "EmitInterval": "5",
+            "Enabled": "true",
+            "S3BucketName": {
+              "Ref": "AccessLogBucket"
+            }
+          },
+          "SecurityGroups": [
+            {
+              "Ref": "ElbSg"
+            }
+          ],
+          "Scheme": {
+            "Fn::If": [
+              "IsPublicFacingCondition",
+              "internet-facing",
+              "internal"
+            ]
+          }
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "82de6017-46dd-4cab-8ae5-5d637962f42c"
+        }
+      }
+    },
+    "Outbound": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+	    "GroupDescription" : "Unlimited outbound access.",
+        "SecurityGroupEgress": [
+          {
+            "CidrIp": "0.0.0.0/0",
+            "FromPort": "0",
+            "IpProtocol": "6",
+            "ToPort": "65535"
+          }
+        ],
+			"VpcId": {"Ref":"VpcId"}
+      },
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "e12ef432-322b-4947-b9c3-9470a353b0f1"
+        }
+      }
+    }
+  },
+  "Parameters": {
+    "KeyPairName": {
+      "Description": "Name of an existing EC2 KeyPair to enable SSH access to the instances",
+      "Default": "none-prod",
+      "Type": "AWS::EC2::KeyPair::KeyName"
+    },
+    "DeploymentBucketMp": {
+      "Description": "Role that allow access to the required resource for purpose of deployment. [misc.resources.DeploymentBucketMp]",
+      "Type": "String"
+    },
+    "SslCertId": {
+      "Description": "Id of the SSL certificate to use.",
+      "Default": "arn:aws:iam::308403417902:server-certificate/scalabs.io",
+      "Type": "String"
+    },
+    "InstanceType": {
+      "Description": "Type of EC2 instance to launch for frontend",
+      "Type": "String",
+      "Default": "t2.micro",
+      "AllowedValues": [
+        "t2.micro",
+        "t2.small",
+        "t2.medium",
+        "t2.large",
+        "m3.medium",
+        "m4.large",
+        "m4.xlarge",
+        "m4.2xlarge"
+      ],
+      "ConstraintDescription": "Must be a valid EC2 instance type."
+    },
+    "UbuntuAmi": {
+      "Description": "Image id of the frontend",
+      "Type": "AWS::EC2::Image::Id"
+    },
+    "VpcId": {
+      "Description": "VPCid associated with the subnets. [elb.parameters.VpcId]",
+      "Type": "AWS::EC2::VPC::Id"
+    },
+    "ElbSubnet1Id": {
+      "Description": "Subnet to run HA web cluster on. [elb.resources.ElbSubnet1]",
+      "Type": "AWS::EC2::Subnet::Id"
+    },
+    "ElbSubnet2Id": {
+      "Description": "Subnet to run HA web cluster on. [elb.resources.ElbSubnet2]",
+      "Type": "AWS::EC2::Subnet::Id"
+    },
+    "WebServerSubnet1Id": {
+      "Description": "Subnet to run HA web cluster on. [elb.resources.PvtWebSubnet1]",
+      "Type": "AWS::EC2::Subnet::Id"
+    },
+    "WebServerSubnet2Id": {
+      "Description": "Subnet to run HA web cluster on. [elb.resources.PvtWebSubnet2]",
+      "Type": "AWS::EC2::Subnet::Id"
+    },
+    "ElbSg": {
+      "Description": "Elb security group. [vpc.resources.HttpSecGroup]",
+      "Type": "String"
+    },
+    "WebServerSg": {
+      "Description": "Web Server security group. [vpc.resources.ElbWebServerSecGroup]",
+      "Type": "String"
+    },
+    "AccessLogBucket": {
+      "Description": "Image id of the frontend [s3-aws-logs.resources.Raw]",
+      "Type": "String"
+    },
+    "TemplateBaseUrl": {
+      "Description": "Base url where this template was launched from",
+      "Type": "String"
+    },
+    "IsPublicFacing": {
+      "Description": "Is publicly accessable deployment.",
+      "Type": "String",
+      "AllowedValues": [
+        "true",
+        "false"
+      ],
+      "Default": "false",
+      "ConstraintDescription": "Valid schemes: 'internet-facing' or 'internal'."
+    },
+    "StorageBucketName": {
+      "Description": "Name of the storage bucket.",
+      "Type": "String",
+      "Default": ""
+    },
+	"EnrichedReadCheckpointDdbName": {
+      "Description": "Name of the dynamodb used for EC2 cluster to checkpoint when reading from the enriched stream.",
+      "Type": "String"
+	},
+	"RawReadCheckpointDdbName": {
+      "Description": "Name of the dynamodb used for EC2 cluster to checkpoint when reading from the raw stream.",
+      "Type": "String"
+	}
+  }
+}
