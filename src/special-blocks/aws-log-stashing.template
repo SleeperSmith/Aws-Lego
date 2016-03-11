@@ -76,6 +76,28 @@
 			"Type": "String",
             "AllowedValues": ["subscribe", "unsubscribe"],
             "Default": "unsubscribe"
+		},
+        "RawLogBucketName" : {
+			"Description": "Hostname of Elasticsearch [s3-aws-logs.resources.Raw]",
+			"Type": "String"
+		},
+        "RawLogSns" : {
+			"Description": "Hostname of Elasticsearch [s3-aws-logs.resources.RawBucketNotification]",
+			"Type": "String"
+		},
+        "AccessLogBucketName" : {
+			"Description": "Hostname of Elasticsearch [s3-aws-logs.resources.AccessLog]",
+			"Type": "String"
+		},
+        "AccessLogSns" : {
+			"Description": "Hostname of Elasticsearch [s3-aws-logs.resources.AccessLogBucketNotification]",
+			"Type": "String"
+		},
+
+		"LogstashSqsDocker": {
+			"Description": "Name of cluster. This is used for discovery.",
+			"Type": "String",
+			"Default": "sleepersmith/aws-lego-sqs3logstashing"
 		}
 	},
 
@@ -97,7 +119,7 @@
 		}
 	},
     
-    "Condition" : {
+    "Conditions" : {
         "Subscribe" : {"Fn::Equals" : [{"Ref" : "IsSubscribed"}, "subscribe"]}
     },
 
@@ -191,19 +213,9 @@
 			}
 		},
         
-        "CloudConfigLogGroupName" : {
-			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
-			"Type" : "AWS::Logs::SubscriptionFilter",
-            "Condition" : "Subscribe",
-			"Properties" : {
-				"DestinationArn" : { "Fn::GetAtt" : ["LogStream","Arn"] },
-				"FilterPattern" : "",
-				"LogGroupName" : {"Ref":"CloudTrailLogGroupName"},
-				"RoleArn" : { "Fn::GetAtt" : [ "LogStreamRole", "Arn" ] }
-			}
-		},
 
-		"EsDataNodeAsg" : {
+
+		"LogstashAsg" : {
 			"Type" : "AWS::AutoScaling::AutoScalingGroup",
 			"Properties" : {
 				"VPCZoneIdentifier": [
@@ -314,6 +326,151 @@
 				],
 				"VpcId" : { "Ref" : "VpcId"},
 				"Tags": [{"Key": "Name", "Value" : "Ls Nodes"}]
+			}
+		},
+		
+		"LogQueue" : {
+			"Type": "AWS::SQS::Queue",
+			"Properties": {
+				"QueueName": { "Fn::Join": ["", [
+					{"Ref": "AWS::StackName"}
+				]]},
+				"ReceiveMessageWaitTimeSeconds": "20",
+				"VisibilityTimeout": 300
+			}
+		},
+		"LogQueuePolicy":{
+			"Type":"AWS::SQS::QueuePolicy",
+			"Properties":{        
+				"PolicyDocument":{
+					"Version":"2012-10-17",
+					"Id":"LogQueuePolicy",
+					"Statement":[
+						{
+							"Sid":"RawLog",
+							"Effect":"Allow",           
+							"Principal":"*",
+							"Action":["sqs:SendMessage"],
+							"Resource":"*",
+							"Condition":{
+								"ArnEquals":{
+									"aws:SourceArn":{"Ref":"RawLogSns"}
+								}
+							}
+						},
+						{
+							"Sid":"RawLog",
+							"Effect":"Allow",           
+							"Principal":"*",
+							"Action":["sqs:SendMessage"],
+							"Resource":"*",
+							"Condition":{
+								"ArnEquals":{
+									"aws:SourceArn":{"Ref":"AccessLogSns"}
+								}
+							}
+						}
+					]
+				},
+				"Queues":[{"Ref":"LogQueue"}]
+			}
+		},
+		"LogstashSqsInstanceProfile": {
+			"Type": "AWS::IAM::InstanceProfile",
+			"Properties": {
+				"Path": "/logstash/",
+				"Roles": [{ "Ref": "LogstashSqsRole" }]
+			}
+		},
+		"LogstashSqsRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": [ "ec2.amazonaws.com" ]
+							},
+							"Action": [ "sts:AssumeRole" ]
+						}
+					]
+				},
+				"Path": "/logstash/"
+			}
+		},
+		
+		"LogstashSqsRolePolicies" : {
+			"Type" : "AWS::IAM::Policy",
+			"Properties" : {
+				"PolicyName" : "LogstashSqsPolicy",
+				"PolicyDocument": {
+					"Version" : "2012-10-17",
+					"Statement":[
+						{
+							"Effect":"Allow",
+							"Action":[
+								"sqs:*"
+							],
+							"Resource":[
+								{"Fn::GetAtt":["LogQueue","Arn"]}
+							] 
+						},
+						{
+							"Effect":"Allow",
+							"Action":[
+								"s3:Get*"
+							],
+							"Resource": "*"
+						}
+					]
+				},
+				"Roles": [ { "Ref": "LogstashSqsRole" } ]
+			}
+		},
+		"LogstashSqsAsg" : {
+			"Type" : "AWS::AutoScaling::AutoScalingGroup",
+			"Properties" : {
+				"VPCZoneIdentifier": [
+					{ "Ref" : "Subnet1Id" }
+				],
+				"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
+				"LaunchConfigurationName" : { "Ref" : "LogstashSqsLc" },
+				"MinSize" : "1",
+				"MaxSize" : "20",
+				"DesiredCapacity" : "1",
+				"Tags" : [{"Key": "Name", "Value" : "Logstash Sqs", "PropagateAtLaunch" : "True"}]
+			}
+		},
+		"LogstashSqsLc" : {
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Properties": {
+				"InstanceType" : { "Ref" : "LogstashNodeType" },
+				"ImageId" : { "Ref" : "UbuntuAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" },
+				"AssociatePublicIpAddress": "false",
+				"SecurityGroups": [
+					{ "Ref" : "LogstashSg" }
+				],
+				"IamInstanceProfile": { "Ref" : "LogstashSqsInstanceProfile" },
+				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+                    "#!/bin/bash\n",
+                    "ifconfig eth0 mtu 1500\n",
+                    "wget -qO- https://get.docker.com/ | sh\n",
+                    "docker run -d --restart=always ", {"Ref":"LogstashSqsDocker"}, " ",
+                        {"Fn::GetAtt":["LogQueue","QueueName"]}, " ",
+						{"Ref":"EsHost"}, " ",
+                        {"Ref":"RawLogBucketName"}, " ",
+						{"Ref":"AccessLogBucketName"}, " ",
+						"s3-access", " ", "cf-access"
+				]]}},
+				"BlockDeviceMappings" : [
+					{
+						"DeviceName" : "/dev/sda1",
+						"Ebs" : { "VolumeSize" : "50", "VolumeType" : "gp2" }
+					}
+				]
 			}
 		}
 	},
