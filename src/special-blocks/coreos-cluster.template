@@ -1,0 +1,134 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "CoreOS on EC2: http://coreos.com/docs/running-coreos/cloud-providers/ec2/",
+  "Parameters": {
+		"VpcId": {
+			"Description" : "VPCid associated with the subnets. [nat-enabled.parameters.VpcId]",
+			"Type": "AWS::EC2::VPC::Id"
+		},
+		"Subnet1Id": {
+			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet1]",
+			"Type": "AWS::EC2::Subnet::Id"
+		},
+		"Subnet2Id": {
+			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet2]",
+			"Type": "String",
+			"Default": ""
+		},
+		"Subnet3Id": {
+			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet3]",
+			"Type": "String",
+			"Default": ""
+		},
+		"CoreOsAmi": {
+			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet3]",
+			"Default": "AWS::EC2::Image::Id"
+		},
+		"InstanceType" : {
+			"Description" : "EC2 HVM instance type (m3.medium, etc).",
+			"Type" : "String",
+			"Default" : "m3.medium",
+			"ConstraintDescription" : "Must be a valid EC2 HVM instance type."
+		},
+		"ClusterSize": {
+			"Default": "3",
+			"MinValue": "3",
+			"MaxValue": "11",
+			"Description": "Number of nodes in cluster (3-11).",
+			"Type": "Number"
+		},
+		"DiscoveryURL": {
+			"Description": "An unique etcd cluster discovery URL. Grab a new token from https://discovery.etcd.io/new?size=<your cluster size>",
+			"Type": "String"
+		},
+		"AdvertisedIPAddress": {
+			"Description": "Use 'private' if your etcd cluster is within one region or 'public' if it spans regions or cloud providers.",
+			"Default": "private",
+			"AllowedValues": ["private", "public"],
+			"Type": "String"
+		},
+		"KeyPair" : {
+			"Description" : "The name of an EC2 Key Pair to allow SSH access to the instance.",
+			"Type" : "String"
+		}
+	},
+	"Resources": {
+		"CoreOsSecurityGroup": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Properties": {
+				"VpcId" : { "Ref" : "VpcId"},
+				"GroupDescription": "CoreOS SecurityGroup"
+			}
+		},
+		"Ingress4001": {
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties": {
+				"GroupId": {"Ref": "CoreOsSecurityGroup"},
+				"IpProtocol": "tcp",
+				"FromPort": "4001",
+				"ToPort": "4001",
+				"SourceSecurityGroupId": {"Ref" : "CoreOsSecurityGroup"}
+			}
+		},
+		"Ingress2379": {
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties": {
+				"GroupId": {"Ref": "CoreOsSecurityGroup"},
+				"IpProtocol": "tcp",
+				"FromPort": "2379",
+				"ToPort": "2379",
+				"SourceSecurityGroupId": {"Ref" : "CoreOsSecurityGroup"}
+			}
+		},
+		"Ingress2380": {
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties": {
+				"GroupId": {"Ref": "CoreOsSecurityGroup"},
+				"IpProtocol": "tcp",
+				"FromPort": "2380",
+				"ToPort": "2380",
+				"SourceSecurityGroupId": {"Ref" : "CoreOsSecurityGroup"}
+			}
+		},
+		"CoreOSServerAutoScale": {
+			"Type": "AWS::AutoScaling::AutoScalingGroup",
+			"Properties": {
+				"VPCZoneIdentifier": [
+					{ "Ref" : "Subnet1Id" }
+				],
+				"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
+				"LaunchConfigurationName": {"Ref": "CoreOSServerLaunchConfig"},
+				"MinSize": "3",
+				"MaxSize": "12",
+				"DesiredCapacity": {"Ref": "ClusterSize"},
+				"Tags": [
+					{"Key": "Name", "Value": { "Ref" : "AWS::StackName" }, "PropagateAtLaunch": true}
+				]
+			}
+		},
+		"CoreOSServerLaunchConfig": {
+			"Type": "AWS::AutoScaling::LaunchConfiguration",
+			"Properties": {
+				"ImageId" : {"Ref":"CoreOsAmi"},
+				"InstanceType": {"Ref": "InstanceType"},
+				"KeyName": {"Ref": "KeyPair"},
+				"SecurityGroups": [{"Ref": "CoreOsSecurityGroup"}],
+				"UserData" : { "Fn::Base64":{ "Fn::Join": [ "", [
+					"#cloud-config\n\n",
+					"coreos:\n",
+					"  etcd2:\n",
+					"    discovery: ", { "Ref": "DiscoveryURL" }, "\n",
+					"    advertise-client-urls: http://$", { "Ref": "AdvertisedIPAddress" }, "_ipv4:2379\n",
+					"    initial-advertise-peer-urls: http://$", { "Ref": "AdvertisedIPAddress" }, "_ipv4:2380\n",
+					"    listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001\n",
+					"    listen-peer-urls: http://$", { "Ref": "AdvertisedIPAddress" }, "_ipv4:2380\n",
+					"  units:\n",
+					"    - name: etcd2.service\n",
+					"      command: start\n",
+					"    - name: fleet.service\n",
+					"      command: start\n"
+				]]}}
+			}
+		}
+	}
+}
