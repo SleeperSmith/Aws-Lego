@@ -55,8 +55,16 @@
 			"Description" : "VPC id [internet-access.resources.RouteTable]",
 			"Type" : "String"
 		},
-		"NatEnabledRouteTable" : {
-			"Description" : "VPC id [nat-enabled.resources.RouteTable]",
+		"NatEnabledRouteTable1" : {
+			"Description" : "VPC id [nat-enabled.resources.RouteTable1]",
+			"Type" : "String"
+		},
+		"NatEnabledRouteTable2" : {
+			"Description" : "VPC id [nat-enabled.resources.RouteTable2]",
+			"Type" : "String"
+		},
+		"NatEnabledRouteTable3" : {
+			"Description" : "VPC id [nat-enabled.resources.RouteTable3]",
 			"Type" : "String"
 		},
 
@@ -331,7 +339,7 @@
 			"Type" : "AWS::EC2::SubnetRouteTableAssociation",
 			"Properties" : {
 				"SubnetId" : { "Ref" : "PvtWebSubnet1" },
-				"RouteTableId" : { "Ref" : "NatEnabledRouteTable" }
+				"RouteTableId" : { "Ref" : "NatEnabledRouteTable1" }
 			}
 		},
 		"PvtAclAssociation1" : {
@@ -359,7 +367,7 @@
 			"Type" : "AWS::EC2::SubnetRouteTableAssociation",
 			"Properties" : {
 				"SubnetId" : { "Ref" : "PvtWebSubnet2" },
-				"RouteTableId" : { "Ref" : "NatEnabledRouteTable" }
+				"RouteTableId" : { "Ref" : "NatEnabledRouteTable2" }
 			}
 		},
 		"PvtAclAssociation2" : {
@@ -389,7 +397,7 @@
 			"Condition" : "IsThreeAz",
 			"Properties" : {
 				"SubnetId" : { "Ref" : "PvtWebSubnet3" },
-				"RouteTableId" : { "Ref" : "NatEnabledRouteTable" }
+				"RouteTableId" : { "Ref" : "NatEnabledRouteTable3" }
 			}
 		},
 		"PvtAclAssociation3" : {

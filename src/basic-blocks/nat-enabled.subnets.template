@@ -4,8 +4,16 @@
 	"Description" : "General purpose subnets twith a route table having the public route mapped through a NAT.",
 
 	"Parameters" : {
-		"NatServerSubnet" : {
+		"NatServerSubnet1" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. [internet-access.resources.Subnet1]",
+			"Type" : "String"
+		},
+        "NatServerSubnet2" : {
+			"Description" : "Subnet suffix to be concatenated with the VPC prefix. [internet-access.resources.Subnet2]",
+			"Type" : "String"
+		},
+        "NatServerSubnet3" : {
+			"Description" : "Subnet suffix to be concatenated with the VPC prefix. [internet-access.resources.Subnet3]",
 			"Type" : "String"
 		},
 
@@ -46,19 +54,8 @@
 			"Description" : "Comma-delimited list of three IP blocks",
 			"Type" : "CommaDelimitedList",
 			"Default" : ""
-		},
-
-		"KeyPairName": {
-			"Description": "Name of an existing EC2 KeyPair to enable SSH access to the instances",
-			"Type": "String"
-		},
-		
-		"NatImageId" : {
-			"Description" : "NAT image id.",
-			"Type" : "String"
 		}
-
-	},
+    },
 
 	"Conditions" : {
 		"IsThreeAz" : { "Fn::Equals" : [{"Ref" : "AzCount"}, "3"]},
@@ -82,11 +79,39 @@
 				"Tags" : []
 			}
 		},
+        "Nat1" : {
+            "Type" : "AWS::EC2::NatGateway",
+            "Properties" : {
+                "AllocationId" : { "Fn::GetAtt" : ["Eip1", "AllocationId"]},
+                "SubnetId" : { "Ref" : "NatServerSubnet1"}
+            }
+        },
+        "Eip1" : {
+            "Type" : "AWS::EC2::EIP",
+            "Properties" : {
+                "Domain" : "vpc"
+            }
+        },
+        "RouteTable1" : {
+			"Type" : "AWS::EC2::RouteTable",
+			"Properties" : {
+				"VpcId" : {"Ref": "VpcId"},
+				"Tags" : []
+			}
+		},
+        "PublicRoute1" : {
+            "Type" : "AWS::EC2::Route",
+            "Properties" : {
+                "RouteTableId" : { "Ref" : "RouteTable1" },
+                "DestinationCidrBlock" : "0.0.0.0/0",
+                "NatGatewayId" : { "Ref" : "Nat1" }
+            }
+        },
 		"RouteTableAssociation1" : {
 			"Type" : "AWS::EC2::SubnetRouteTableAssociation",
 			"Properties" : {
 				"SubnetId" : { "Ref" : "Subnet1" },
-				"RouteTableId" : { "Ref" : "RouteTable" }
+				"RouteTableId" : { "Ref" : "RouteTable1" }
 			}
 		},
 		"AclAssociation1" : {
@@ -110,11 +135,39 @@
 				"Tags" : []
 			}
 		},
+        "Nat2" : {
+            "Type" : "AWS::EC2::NatGateway",
+            "Properties" : {
+                "AllocationId" : { "Fn::GetAtt" : ["Eip2", "AllocationId"]},
+                "SubnetId" : { "Ref" : "NatServerSubnet2"}
+            }
+        },
+        "Eip2" : {
+            "Type" : "AWS::EC2::EIP",
+            "Properties" : {
+                "Domain" : "vpc"
+            }
+        },
+        "RouteTable2" : {
+			"Type" : "AWS::EC2::RouteTable",
+			"Properties" : {
+				"VpcId" : {"Ref": "VpcId"},
+				"Tags" : []
+			}
+		},
+        "PublicRoute2" : {
+            "Type" : "AWS::EC2::Route",
+            "Properties" : {
+                "RouteTableId" : { "Ref" : "RouteTable2" },
+                "DestinationCidrBlock" : "0.0.0.0/0",
+                "NatGatewayId" : { "Ref" : "Nat2" }
+            }
+        },
 		"RouteTableAssociation2" : {
 			"Type" : "AWS::EC2::SubnetRouteTableAssociation",
 			"Properties" : {
 				"SubnetId" : { "Ref" : "Subnet2" },
-				"RouteTableId" : { "Ref" : "RouteTable" }
+				"RouteTableId" : { "Ref" : "RouteTable2" }
 			}
 		},
 		"AclAssociation2" : {
@@ -139,12 +192,44 @@
 				"Tags" : []
 			}
 		},
+        "Nat3" : {
+            "Type" : "AWS::EC2::NatGateway",
+			"Condition" : "IsThreeAz",
+            "Properties" : {
+                "AllocationId" : { "Fn::GetAtt" : ["Eip3", "AllocationId"]},
+                "SubnetId" : { "Ref" : "NatServerSubnet3"}
+            }
+        },
+        "Eip3" : {
+            "Type" : "AWS::EC2::EIP",
+			"Condition" : "IsThreeAz",
+            "Properties" : {
+                "Domain" : "vpc"
+            }
+        },
+        "RouteTable3" : {
+			"Type" : "AWS::EC2::RouteTable",
+			"Condition" : "IsThreeAz",
+			"Properties" : {
+				"VpcId" : {"Ref": "VpcId"},
+				"Tags" : []
+			}
+		},
+        "PublicRoute3" : {
+            "Type" : "AWS::EC2::Route",
+			"Condition" : "IsThreeAz",
+            "Properties" : {
+                "RouteTableId" : { "Ref" : "RouteTable3" },
+                "DestinationCidrBlock" : "0.0.0.0/0",
+                "NatGatewayId" : { "Ref" : "Nat3" }
+            }
+        },
 		"RouteTableAssociation3" : {
 			"Type" : "AWS::EC2::SubnetRouteTableAssociation",
 			"Condition" : "IsThreeAz",
 			"Properties" : {
 				"SubnetId" : { "Ref" : "Subnet3" },
-				"RouteTableId" : { "Ref" : "RouteTable" }
+				"RouteTableId" : { "Ref" : "RouteTable3" }
 			}
 		},
 		"AclAssociation3" : {
@@ -156,59 +241,6 @@
 			}
 		},
 
-		"NatServer" : {
-			"Type" : "AWS::EC2::Instance",
-			"Properties" : {
-				"DisableApiTermination" : "true",
-				"ImageId" : {"Ref": "NatImageId"},
-				"InstanceType" : "t2.micro",
-				"KeyName" : {"Ref": "KeyPairName"},
-				"SourceDestCheck" : "false",
-				"Tags" : [{"Key" : "Name", "Value" : "NAT"}],
-				"NetworkInterfaces" : [{
-					"AssociatePublicIpAddress" : "true",
-					"DeleteOnTermination" : "true",
-					"GroupSet" : [{"Ref":"NatSecurityGroup"}],
-					"SubnetId" : {"Ref": "NatServerSubnet"},
-					"DeviceIndex" : "0"
-				}]
-			}
-		},
-		"NatSecurityGroup" : {
-			"Type" : "AWS::EC2::SecurityGroup",
-			"Properties" :
-			{
-				"GroupDescription" : "NAT sec group. Allow all inbound from vpc, and all outbound traffic.",
-				"SecurityGroupEgress" : [{
-					"IpProtocol" : "-1",
-					"CidrIp" : "0.0.0.0/0"
-				}],
-				"SecurityGroupIngress" : [{
-					"IpProtocol" : "-1",
-					"CidrIp" : { "Fn::Join" : [ "", [
-						{ "Ref" : "VpcPrefix" }, ".0.0/16"
-					]]}
-				}],
-				"Tags" : [{ "Key" : "Name", "Value" : "NAT" }],
-				"VpcId" : { "Ref": "VpcId" }
-			}
-		},
-
-		"RouteTable" : {
-			"Type" : "AWS::EC2::RouteTable",
-			"Properties" : {
-				"VpcId" : {"Ref": "VpcId"},
-				"Tags" : []
-			}
-		},
-		"PublicRoute" : {
-			"Type" : "AWS::EC2::Route",
-			"Properties" : {
-				"RouteTableId" : { "Ref" : "RouteTable" },
-				"DestinationCidrBlock" : "0.0.0.0/0",
-				"InstanceId" : { "Ref" : "NatServer" }
-			}
-		},
 		"Acl" : {
 			"Type" : "AWS::EC2::NetworkAcl",
 			"Properties" : {
