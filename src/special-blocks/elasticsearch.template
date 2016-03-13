@@ -98,6 +98,16 @@
 			"Description": "Name of container to run elasticsearch.",
 			"Type": "String",
 			"Default": "sleepersmith/aws-lego-elasticsearch:v0.1.0"
+		},
+		"AzCount" : {
+			"Description" : "Number of AZ. Third subnet will only be created if number is 3 [vpc.outputs.AzCount]",
+			"Type" : "String"
+		},
+
+		"AvailableAzs" : {
+			"Description" : "Comma-delimited list of three IP blocks",
+			"Type" : "CommaDelimitedList",
+			"Default" : ""
 		}
 	},
 
@@ -116,6 +126,13 @@
 			"r3.4xlarge": { "ram" : "60000" },
 			"r3.8xlarge": { "ram" : "120000" }
 		}
+	},
+
+	"Conditions" : {
+		"IsThreeAz" : { "Fn::Equals" : [{"Ref" : "AzCount"}, "3"]},
+		"IsAzSupplied" : { "Fn::Not" : [{ "Fn::Equals" : [
+			{"Fn::Select": ["0", {"Ref" : "AvailableAzs"}]}, ""
+		]}]}
 	},
 
 	"Resources" : {
@@ -209,9 +226,9 @@
 		  "Type" : "AWS::AutoScaling::AutoScalingGroup",
 		  "Properties" : {
 		    "VPCZoneIdentifier": [
-				{ "Ref" : "Subnet1Id" }
+				{ "Ref" : "Subnet2Id" }
 			],
-			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
+			"AvailabilityZones" : [{ "Fn::Select": ["1",  { "Fn::GetAZs": "" }]}],
 			"LaunchConfigurationName" : { "Ref" : "EsDataNodeGroupTwoLc" },
 			"MinSize" : "1",
 			"MaxSize" : "10",
@@ -256,9 +273,15 @@
 		  "Type" : "AWS::AutoScaling::AutoScalingGroup",
 		  "Properties" : {
 		    "VPCZoneIdentifier": [
-				{ "Ref" : "Subnet1Id" }
+				{ "Ref" : "Subnet1Id" },
+				{ "Ref" : "Subnet2Id" },
+				{ "Fn::If" : ["IsThreeAz",
+					{"Ref":"Subnet3Id"},
+					{"Ref":"AWS::NoValue"}] }
 			],
-			"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
+			"AvailabilityZones" : {"Fn::If": ["IsAzSupplied",
+				{ "Ref":"AvailableAzs" },
+				{ "Fn::GetAZs": "" }]},
 			"LaunchConfigurationName" : { "Ref" : "EsMasterNodeLc" },
 			"MinSize" : "1",
 			"MaxSize" : "7",
@@ -270,7 +293,11 @@
 			"Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
 			"Properties" : {
 				"Subnets": [
-					{ "Ref" : "Subnet1Id" }
+					{ "Ref" : "Subnet1Id" },
+					{ "Ref" : "Subnet2Id" },
+					{ "Fn::If" : ["IsThreeAz",
+						{"Ref":"Subnet3Id"},
+						{"Ref":"AWS::NoValue"}] }
 				],
 				"Listeners" : [
 				{
@@ -391,20 +418,11 @@
 			"Properties" : {
 				"GroupDescription" : "Load Balancer targets.",
 				"SecurityGroupIngress" : [
-					{ "IpProtocol": "6", "SourceSecurityGroupId" : { "Ref" : "EsElbSg" }, "FromPort" : "9200", "ToPort" : "9200" }
+					{ "IpProtocol": "6", "SourceSecurityGroupId" : { "Ref" : "EsElbSg" }, "FromPort" : "9200", "ToPort" : "9200" },
+					{ "IpProtocol": "6", "SourceSecurityGroupId" : { "Ref" : "EsElbSg" }, "FromPort" : "80", "ToPort" : "80" }
 				],
 				"VpcId" : { "Ref" : "VpcId"},
 				"Tags": [{"Key": "Name", "Value" : "Es Cluster Gateway Nodes"}]
-			}
-		},
-		"EsClusterGatewayNodeFromEsElbIngress" : {
-			"Type" : "AWS::EC2::SecurityGroupIngress",
-			"Properties" : {
-				"IpProtocol" : "tcp",
-				"ToPort" : "9200",
-				"FromPort" : "9200",
-				"GroupId" : { "Ref" : "EsClusterGatewayNodeSg" },
-				"SourceSecurityGroupId" : { "Ref" : "EsElbSg" }
 			}
 		},
 		"EsMasterElbKibanaIngress" : {
@@ -431,6 +449,16 @@
 				"IpProtocol": "tcp",
 				"FromPort": "9200",
 				"ToPort": "9200",
+				"GroupId": { "Ref" : "EsElbSg" },
+				"DestinationSecurityGroupId": { "Ref" : "EsClusterGatewayNodeSg" }
+			}
+		},
+		"EsElbToEsClusterGatewayNodeKibanaEgress" : {
+			"Type": "AWS::EC2::SecurityGroupEgress",
+			"Properties":{
+				"IpProtocol": "tcp",
+				"FromPort": "80",
+				"ToPort": "80",
 				"GroupId": { "Ref" : "EsElbSg" },
 				"DestinationSecurityGroupId": { "Ref" : "EsClusterGatewayNodeSg" }
 			}
