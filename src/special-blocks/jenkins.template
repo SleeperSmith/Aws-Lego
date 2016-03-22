@@ -92,22 +92,15 @@
 			"Description": "AMI to use. Note Ubuntu is prefered.",
 			"Type": "String"
 		},
-		"ArtifactDiskSize": {
-			"Description": "Size of the disk to store built artifacts.",
-			"Default": "500",
-			"Type": "Number",
-			"MinValue": "50",
-			"MaxValue": "1000"
-		},
 		
 		"JenkinsSwarmJar": {
 			"Description": "Url to download Go windows agent binary from.",
 			"Default": "http://maven.jenkins-ci.org/content/repositories/releases/org/jenkins-ci/plugins/swarm-client/1.24/swarm-client-1.24-jar-with-dependencies.jar",
 			"Type": "String"
 		},
-		"JenkinsSwarmMasterPlugin": {
-			"Description": "Url to download Go windows agent binary from.",
-			"Default": "http://updates.jenkins-ci.org/download/plugins/swarm/1.24/swarm.hpi",
+		"JenkinsContainer": {
+			"Description": "Jenkins container name with tag.",
+			"Default": "jenkins:1.642.2",
 			"Type": "String"
 		},
 		"JavaWindowsInstaller": {
@@ -194,87 +187,6 @@
 
 		"JenkinsMaster" : {
 			"Type" : "AWS::EC2::Instance",
-			"Metadata" : {
-				"AWS::CloudFormation::Init" : {
-					"configSets": {
-						"config": [
-							"install-packages",
-							"initialise"
-						]
-					},
-					"install-packages" : {
-						"packages": {
-							"apt": {
-								"subversion": [],
-								"git": []
-							}
-						},
-						"files" : {
-							"/home/local/jenkins-install.sh" : {
-								"content" : { "Fn::Join" : ["", [
-									"#!/bin/bash\n",
-									"wget -q -O - https://jenkins-ci.org/debian/jenkins-ci.org.key | sudo apt-key add -\n",
-									"sh -c \"echo deb http://pkg.jenkins-ci.org/debian binary/ > /etc/apt/sources.list.d/jenkins.list\"\n",
-									"apt-get update\n",
-									"apt-get install jenkins -y\n",
-									"sed -i 's/JENKINS_HOME=\\/var\\/lib\\/\\$NAME/JENKINS_HOME=\\/mnt\\/xvdb/g' /etc/default/jenkins\n",
-									"service jenkins restart"
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							}
-						},
-						"commands" : {
-							"1-install": {
-								"command" : "./jenkins-install.sh",
-								"cwd" : "/home/local/",
-								"ignoreErrors" : "false"
-							}
-						}
-					},
-					"initialise" : {
-						"files" : {
-							"/home/local/mount-disk.sh" : {
-								"content" : { "Fn::Join" : ["\n", [
-									"#!/bin/bash",
-									{"Fn::If":["HasStateSnapshot","","mkfs -t ext3 /dev/$1"]},
-									"mkdir /mnt/$1",
-									"mount -t ext3 /dev/$1 /mnt/$1",
-									"chmod 777 /mnt/$1"
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							},
-							"/mnt/xvdb/plugins/swarm.hpi" : {"Fn::If":["HasStateSnapshot",
-								{"Ref":"AWS::NoValue"},
-								{
-									"source": {"Ref": "JenkinsSwarmMasterPlugin"},
-									"mode"   : "000755",
-									"owner"  : "ubuntu",
-									"group"  : "ubuntu"
-								}
-							]}
-						},
-						"commands" : {
-							"1-mount-data-disk": {
-								"command" : "bash mount-disk.sh xvdb",
-								"cwd" : "/home/local/",
-								"ignoreErrors" : "true"
-							},
-							"3-mount-data-disk": {
-								"command" : "chmod 777 /mnt/xvdb -R",
-								"ignoreErrors" : "true"
-							},
-							"4-restart-jenkins": {
-								"command" : "service jenkins restart",
-								"ignoreErrors" : "false"
-							}
-						}
-					}
-				}
-			},
 			"Properties" : {
 				"InstanceType" : { "Ref" : "ServerInstanceType" },
 				"ImageId" : { "Ref" : "ServerAmi" },
@@ -285,10 +197,16 @@
 				"SubnetId": { "Ref" : "Subnet1Id"},
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
 					"#!/bin/bash\n",
-					"apt-get update\n",
-					"apt-get -y install python-setuptools default-jre\n",
-					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
-					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r JenkinsMaster -c config"
+                    "ifconfig eth0 mtu 1500\n",
+                    "wget -qO- https://get.docker.com/ | sh\n",
+
+					{"Fn::If":["HasStateSnapshot","","mkfs -t ext4 /dev/xvdb\n"]},
+					"mkdir /mnt/xvdb\n",
+					"mount -t ext4 /dev/xvdb /mnt/xvdb\n",
+					"chown -R 1000 /mnt/xvdb\n",
+
+                    "docker run -d --restart=always -p 8080:8080 -p 50000:50000 -v /mnt/xvdb:/var/jenkins_home ",
+                        {"Ref":"JenkinsContainer"}
 				]]}},
 				"BlockDeviceMappings": [
 					{
@@ -476,10 +394,9 @@
 			"Type" : "AWS::AutoScaling::AutoScalingGroup",
 			"Properties" : {
 				"VPCZoneIdentifier": [
-					{ "Ref" : "Subnet1Id" },
-					{ "Ref" : "Subnet2Id" }
+					{ "Ref" : "Subnet1Id" }
 				],
-				"AvailabilityZones" : { "Fn::GetAZs": "" },
+				"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
 				"LaunchConfigurationName" : { "Ref" : "JenkinsWindowsSlaveSpotLc" },
 				"MinSize" : "0",
 				"MaxSize" : "20",
