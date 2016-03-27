@@ -29,9 +29,8 @@
 		"MasterNodeInstanceType" : {
 			"Description" : "WebServer EC2 instance type",
 			"Type" : "String",
-			"Default" : "t2.micro",
+			"Default" : "t2.small",
 			"AllowedValues": [
-				"t2.micro",
 				"t2.small",
 				"t2.medium",
 				"m3.medium",
@@ -108,6 +107,24 @@
 			"Description" : "Comma-delimited list of three IP blocks",
 			"Type" : "CommaDelimitedList",
 			"Default" : ""
+		},
+
+		"CwlUbuntuAgentDocker": {
+			"Description": "Name of cluster. This is used for discovery.",
+			"Type": "String",
+			"Default": "sleepersmith/aws-lego-awscwlagent-ubuntu:v0.2.0"
+		},
+		"CwlLinuxParams" : {
+			"Description": "Environment variables for syslog and authlog cwl group names [s3-aws-logs.outputs.LxDockerLogParams]",
+			"Type": "String"
+		},
+		"CwlDockerParams" : {
+			"Description": "Docker log driver params [s3-aws-logs.outputs.DockerCwlParams]",
+			"Type": "String"
+		},
+		"CwlPolicy" : {
+			"Description": "Managed policy for linux logging. [s3-aws-logs.resources.LinuxLogPolicy]",
+			"Type": "String"
 		}
 	},
 
@@ -152,10 +169,26 @@
                     "#!/bin/bash\n",
                     "ifconfig eth0 mtu 1500\n",
                     "wget -qO- https://get.docker.com/ | sh\n",
+
 					"mkdir /mnt/xvdk\n",
 					"mkfs -t ext4 /dev/xvdk\n",
 					"mount /dev/xvdk /mnt/xvdk\n",
+
+					"ECID=$(curl http://instance-data/latest/meta-data/instance-id)\n",
+					"CWLA=cwlagent_$ECID\n",
+					"docker run -d --restart=always ",
+						"--name $CWLA --log-opt awslogs-stream=$CWLA ",
+						"-v /var/log:/var/log-host:ro ",
+						{"Ref":"CwlLinuxParams"}," ",
+						{"Ref":"CwlDockerParams"}," ",
+						{"Ref":"CwlUbuntuAgentDocker"},"\n",
+					"docker run -d --restart=always --name cwlcron ",
+						{"Ref":"CwlUbuntuAgentDocker"}," cron\n",
+
+					"ESDN=es-data_$ECID\n",
                     "docker run --restart=always -p 9200:9200 -p 9300:9300 -d --cap-add=IPC_LOCK --ulimit memlock=-1:-1 -v /mnt/xvdk:/mnt/xvdk ",
+						"--name $ESDN --log-opt awslogs-stream=$ESDN ",
+						{"Ref":"CwlLinuxParams"}," ",
                         {"Ref":"EsContainerName"}, " ", {"Ref":"EsConfClusterName"}, " ",
                         {"Ref":"EsClusterNodeSg"}, " false true grp_one ",
                         {"Ref":"EsConfReplica"}, " ", {"Ref":"EsConfShard"}, " ",
@@ -201,10 +234,26 @@
                     "#!/bin/bash\n",
                     "ifconfig eth0 mtu 1500\n",
                     "wget -qO- https://get.docker.com/ | sh\n",
+
 					"mkdir /mnt/xvdk\n",
 					"mkfs -t ext4 /dev/xvdk\n",
 					"mount /dev/xvdk /mnt/xvdk\n",
+
+					"ECID=$(curl http://instance-data/latest/meta-data/instance-id)\n",
+					"CWLA=cwlagent_$ECID\n",
+					"docker run -d --restart=always ",
+						"--name $CWLA --log-opt awslogs-stream=$CWLA ",
+						"-v /var/log:/var/log-host:ro ",
+						{"Ref":"CwlLinuxParams"}," ",
+						{"Ref":"CwlDockerParams"}," ",
+						{"Ref":"CwlUbuntuAgentDocker"},"\n",
+					"docker run -d --restart=always --name cwlcron ",
+						{"Ref":"CwlUbuntuAgentDocker"}," cron\n",
+
+					"ESDN=es-data_$ECID\n",
                     "docker run --restart=always -p 9200:9200 -p 9300:9300 -d --cap-add=IPC_LOCK --ulimit memlock=-1:-1 -v /mnt/xvdk:/mnt/xvdk ",
+						"--name $ESDN --log-opt awslogs-stream=$ESDN ",
+						{"Ref":"CwlLinuxParams"}," ",
                         {"Ref":"EsContainerName"}, " ", {"Ref":"EsConfClusterName"}, " ",
                         {"Ref":"EsClusterNodeSg"}, " false true grp_two ",
                         {"Ref":"EsConfReplica"}, " ", {"Ref":"EsConfShard"}, " ",
@@ -253,13 +302,31 @@
                     "ifconfig eth0 mtu 1500\n",
                     "wget -qO- https://get.docker.com/ | sh\n",
                     "mkdir /home/xvdk\n",
+
+					"ECID=$(curl http://instance-data/latest/meta-data/instance-id)\n",
+					"CWLA=cwlagent_$ECID\n",
+					"docker run -d --restart=always ",
+						"--name $CWLA --log-opt awslogs-stream=$CWLA ",
+						"-v /var/log:/var/log-host:ro ",
+						{"Ref":"CwlLinuxParams"}," ",
+						{"Ref":"CwlDockerParams"}," ",
+						{"Ref":"CwlUbuntuAgentDocker"},"\n",
+					"docker run -d --restart=always --name cwlcron ",
+						{"Ref":"CwlUbuntuAgentDocker"}," cron\n",
+
+					"ESMN=es-master_$ECID\n",
                     "docker run --restart=always -p 9200:9200 -p 9300:9300 -d --cap-add=IPC_LOCK --ulimit memlock=-1:-1 -v /home/xvdk:/mnt/xvdk ",
+						"--name $ESMN --log-opt awslogs-stream=$ESMN ",
+						{"Ref":"CwlLinuxParams"}," ",
                         {"Ref":"EsContainerName"}, " ", {"Ref":"EsConfClusterName"}, " ",
                         {"Ref":"EsClusterNodeSg"}, " true false master ",
                         {"Ref":"EsConfReplica"}, " ", {"Ref":"EsConfShard"}, " ",
                         { "Fn::FindInMap": [ "InstanceVariables", { "Ref": "MasterNodeInstanceType" }, "ram" ] }, "\n",
-					"docker run --name kibana -p 80:5601 -d --restart=always -e ELASTICSEARCH_URL=http://",
-					{"Fn::GetAtt":["EsMasterLoadBalancer","DNSName"]}, ":9200 kibana\n"
+					"KDN=kibana_$ECID\n",
+					"docker run --name kibana -p 80:5601 -d --restart=always ",
+						"--name $KDN --log-opt awslogs-stream=$KDN ",
+						{"Ref":"CwlLinuxParams"}," ",
+						" -e ELASTICSEARCH_URL=http://", {"Fn::GetAtt":["EsMasterLoadBalancer","DNSName"]}, ":9200 kibana\n"
 				]]}},
 				"BlockDeviceMappings" : [
 					{
@@ -376,7 +443,10 @@
 							]
 						}]
 					}
-				}]
+				}],
+				"ManagedPolicyArns" : [
+					{"Ref":"CwlPolicy"}
+				]
 			}
 		},
 
