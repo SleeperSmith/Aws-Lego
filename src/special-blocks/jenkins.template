@@ -419,29 +419,6 @@
 				"Tags" : [{"Key": "Name", "Value" : "Jenkins Slave", "PropagateAtLaunch" : "True"}]
 			}
 		},
-		"JenkinsWindowsSlaveSpotLc" : {
-			"Type" : "AWS::AutoScaling::LaunchConfiguration",
-			"Properties": {
-				"InstanceType" : { "Ref" : "AgentSpotInstanceType" },
-				"ImageId" : { "Ref" : "WindowsAgentAmi" },
-				"KeyName" : { "Ref" : "KeyPairName" },
-				"AssociatePublicIpAddress": "false",
-				"SecurityGroups": [
-					{ "Ref" : "AgentSg" }
-				],
-				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
-					"<script>\n",
-                    "cfn-init.exe -v -c config -s ", { "Ref": "AWS::StackId" }, " -r JenkinsWindowsSlaveLc ", " --region ", { "Ref": "AWS::Region" }, "\n",
-                    "</script>"
-				]]}},
-				"BlockDeviceMappings": [
-					{ "DeviceName" : "/dev/sda1", "Ebs" : { "VolumeSize" : "80", "VolumeType" : "gp2" } },
-					{ "DeviceName": "xvdb", "VirtualName": "ephemeral0" },
-					{ "DeviceName": "xvdc", "VirtualName": "ephemeral1" }
-				],
-				"SpotPrice": { "Fn::FindInMap": [ "InstanceVariables", { "Ref": "AgentSpotInstanceType" }, "wspotprice" ] }
-			}
-		},
 		"WebServersRole" : {
 		"Type": "AWS::IAM::Role",
 		"Properties": {
@@ -472,21 +449,6 @@
 			"Roles": [{"Ref" : "WebServersRole"}]
 		}
 	},
-		"JenkinsWindowsSlaveSpotAsg" : {
-			"Type" : "AWS::AutoScaling::AutoScalingGroup",
-			"Properties" : {
-				"VPCZoneIdentifier": [
-					{ "Ref" : "Subnet1Id" },
-					{ "Ref" : "Subnet2Id" }
-				],
-				"AvailabilityZones" : { "Fn::GetAZs": "" },
-				"LaunchConfigurationName" : { "Ref" : "JenkinsWindowsSlaveSpotLc" },
-				"MinSize" : "0",
-				"MaxSize" : "20",
-				"DesiredCapacity" : "0",
-				"Tags" : [{"Key": "Name", "Value" : "Jenkins Slave Spot", "PropagateAtLaunch" : "True"}]
-			}
-		},
 
 		"JenkinsLinuxSlaveLc" : {
 			"Type" : "AWS::AutoScaling::LaunchConfiguration",
