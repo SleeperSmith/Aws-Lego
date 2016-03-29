@@ -120,6 +120,11 @@
 			"NoEcho": "True"
 		},
 
+		"SslCertId" : {
+			"Description": "Id of the SSL certificate to use.",
+			"Default" : "",
+            "Type": "String"
+		},
 		"VpcId": {
 			"Description" : "VPCid associated with the subnets. [subnets.parameters.VpcId]",
 			"Type": "String"
@@ -140,6 +145,33 @@
 		"TemplateBaseUrl": {
 			"Description" : "Additional resources are expected from this url; pom.xml",
 			"Type": "String"
+		},
+
+		"ElbSg" : {
+			"Description": "Elb Security Group. [vpc.resources.ElbSecGroup]",
+            "Type": "String"
+		},
+		"ElbTargetSg" : {
+			"Description": "Elb Target Security Group. [vpc.resources.ElbTargetSecGroup]",
+            "Type": "String"
+		},
+		"HttpSg" : {
+			"Description": "Elb Target Security Group. [vpc.resources.HttpNsSecGroup]",
+            "Type": "String"
+		},
+		"IsPublicFacing": {
+			"Description" : "Is publicly accessable deployment.",
+			"Type" : "String",
+			"AllowedValues": [
+				"true",
+				"false"
+			],
+			"Default": "false",
+			"ConstraintDescription": "Valid schemes: 'internet-facing' or 'internal'."
+		},
+		"RawLogBucket" : {
+			"Description": "Elb Target Security Group. [s3-aws-logs.resources.Raw]",
+            "Type": "String"
 		}
 	},
 
@@ -160,16 +192,65 @@
 		}
 	},
 	"Conditions" : {
+		"IsPublicFacingCondition" : {
+			"Fn::Equals": [{"Ref":"IsPublicFacing"},"true"]
+		},
 		"HasStateSnapshot" : {"Fn::Not": [{"Fn::Equals": [
 			{"Ref": "JenkinsStateDiskSnapshot"}, ""
 		]}]},
 		"HasDeploymentBucketMp" : {"Fn::Not": [{"Fn::Equals": [
 			{"Ref": "DeploymentBucketMp"}, ""
+		]}]},
+		"HasSsl" : {"Fn::Not": [{"Fn::Equals": [
+			{"Ref": "SslCertId"}, ""
 		]}]}
 	},
 
 	"Resources" : {
 
+		"HttpGateway" : {
+			"Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+			"Properties" : {
+				"Subnets": [{ "Ref" : "Subnet1Id"}],
+				"Listeners" : [
+					{
+						"LoadBalancerPort" : "80",
+						"InstancePort" : "8080",
+						"Protocol" : "HTTP"
+					},
+					{"Fn::If" : [ "HasSsl",
+					{
+						"LoadBalancerPort" : "443",
+						"InstancePort" : "8080",
+						"Protocol" : "HTTPS",
+						"InstanceProtocol": "HTTP",
+						"SSLCertificateId": { "Ref": "SslCertId" }
+					},{"Ref":"AWS::NoValue"}]}
+				],
+				"HealthCheck" : {
+					"Target" : { "Fn::Join" : [ "", ["TCP:8080"]]},
+					"HealthyThreshold" : "3",
+					"UnhealthyThreshold" : "5",
+					"Interval" : "30",
+					"Timeout" : "5"
+				},
+				"AccessLoggingPolicy" : {
+					"EmitInterval": "5",
+					"Enabled": "true",
+					"S3BucketName": {"Ref": "RawLogBucket"}
+				},
+				"SecurityGroups": [
+					{ "Ref": "ElbSg" },
+					{ "Ref": "HttpSg" }
+				],
+				"Scheme": { "Fn::If" : [
+					"IsPublicFacingCondition",
+					"internet-facing",
+					"internal"
+				]}
+			}
+		},
+		
 		"RepoDisk" : {
 			"Type":"AWS::EC2::Volume",
 			"Properties" : {
@@ -192,7 +273,8 @@
 				"ImageId" : { "Ref" : "ServerAmi" },
 				"KeyName" : { "Ref" : "KeyPairName" },
 				"SecurityGroupIds": [
-					{ "Ref" : "ServerSg" }
+					{ "Ref" : "ServerSg" },
+					{ "Ref" : "ElbTargetSg" }
 				],
 				"SubnetId": { "Ref" : "Subnet1Id"},
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
@@ -490,6 +572,17 @@
 				"GroupDescription" : "Jenkins Agent Security Group. No in bound traffic other than Go Server.",
 				"SecurityGroupEgress" : [
 					{ "IpProtocol": "-1", "CidrIp": "0.0.0.0/0" }
+				],
+				"VpcId" : { "Ref" : "VpcId"},
+				"Tags": [{"Key": "Name", "Value" : "Jenkins Agent Security Group"}]
+			}
+		},
+		"DeploymentTargetSg" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" : {
+				"GroupDescription" : "Jenkins Agent Security Group. No in bound traffic other than Go Server.",
+				"SecurityGroupIngress" : [
+					{ "IpProtocol": "-1", "SourceSecurityGroupId" : {"Ref" : "AgentSg"} }
 				],
 				"VpcId" : { "Ref" : "VpcId"},
 				"Tags": [{"Key": "Name", "Value" : "Jenkins Agent Security Group"}]
