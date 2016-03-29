@@ -1,38 +1,26 @@
 {
 	"AWSTemplateFormatVersion" : "2010-09-09",
 
-	"Description" : "General purpose subnets twith a route table having the public route mapped through a NAT.",
+	"Description" : "Subnets that has outbound internet access and accepts no inbound connections. This is mainly used for servers that need direct access to the WAN; NAT, proxy. Other use cases include services that require massive bandwidth and are potentially hindered by NAT or Proxy. For instance EMR and RedShift when used in combination with taking in data from S3.",
 
 	"Parameters" : {
-		"NatServerSubnet1" : {
-			"Description" : "Subnet suffix to be concatenated with the VPC prefix. [nat-enabling.resources.Subnet1]",
-			"Type" : "String"
-		},
-        "NatServerSubnet2" : {
-			"Description" : "Subnet suffix to be concatenated with the VPC prefix. [nat-enabling.resources.Subnet2]",
-			"Type" : "String"
-		},
-        "NatServerSubnet3" : {
-			"Description" : "Subnet suffix to be concatenated with the VPC prefix. [nat-enabling.resources.Subnet3]",
-			"Type" : "String"
-		},
 
 		"Subnet1Suffix" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. ",
 			"Type" : "Number",
-			"Default" : "76"
+			"Default" : "255.240"
 		},
 
 		"Subnet2Suffix" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. ",
 			"Type" : "Number",
-			"Default" : "77"
+			"Default" : "255.224"
 		},
 
 		"Subnet3Suffix" : {
 			"Description" : "Subnet suffix to be concatenated with the VPC prefix. ",
 			"Type" : "Number",
-			"Default" : "78"
+			"Default" : "255.208"
 		},
 
 		"VpcPrefix" : {
@@ -42,6 +30,11 @@
 
 		"VpcId" : {
 			"Description" : "VPC id [vpc.resources.Vpc]",
+			"Type" : "String"
+		},
+
+		"InternetGateway" : {
+			"Description" : "Id of internet gateway. [vpc.resources.InternetGateway]",
 			"Type" : "String"
 		},
 
@@ -55,7 +48,8 @@
 			"Type" : "CommaDelimitedList",
 			"Default" : ""
 		}
-    },
+
+	},
 
 	"Conditions" : {
 		"IsThreeAz" : { "Fn::Equals" : [{"Ref" : "AzCount"}, "3"]},
@@ -71,47 +65,20 @@
 			"Properties" : {
 				"VpcId" : { "Ref" : "VpcId" },
 				"CidrBlock" : { "Fn::Join" : [ "", [
-					{ "Ref" : "VpcPrefix" }, ".", { "Ref" : "Subnet1Suffix" }, ".0/24"
+					{ "Ref" : "VpcPrefix" }, ".", { "Ref" : "Subnet1Suffix" }, "/28"
 				]]},
 				"AvailabilityZone": { "Fn::Select": [
 					"0", {"Fn::If" : [ "IsAzSupplied", {"Ref" : "AvailableAzs"}, { "Fn::GetAZs": "" } ]}
 				]},
-				"Tags" : []
+				"Tags" : [],
+				"MapPublicIpOnLaunch" : "True"
 			}
 		},
-        "Nat1" : {
-            "Type" : "AWS::EC2::NatGateway",
-            "Properties" : {
-                "AllocationId" : { "Fn::GetAtt" : ["Eip1", "AllocationId"]},
-                "SubnetId" : { "Ref" : "NatServerSubnet1"}
-            }
-        },
-        "Eip1" : {
-            "Type" : "AWS::EC2::EIP",
-            "Properties" : {
-                "Domain" : "vpc"
-            }
-        },
-        "RouteTable1" : {
-			"Type" : "AWS::EC2::RouteTable",
-			"Properties" : {
-				"VpcId" : {"Ref": "VpcId"},
-				"Tags" : []
-			}
-		},
-        "PublicRoute1" : {
-            "Type" : "AWS::EC2::Route",
-            "Properties" : {
-                "RouteTableId" : { "Ref" : "RouteTable1" },
-                "DestinationCidrBlock" : "0.0.0.0/0",
-                "NatGatewayId" : { "Ref" : "Nat1" }
-            }
-        },
 		"RouteTableAssociation1" : {
 			"Type" : "AWS::EC2::SubnetRouteTableAssociation",
 			"Properties" : {
 				"SubnetId" : { "Ref" : "Subnet1" },
-				"RouteTableId" : { "Ref" : "RouteTable1" }
+				"RouteTableId" : { "Ref" : "RouteTable" }
 			}
 		},
 		"AclAssociation1" : {
@@ -127,47 +94,20 @@
 			"Properties" : {
 				"VpcId" : { "Ref" : "VpcId" },
 				"CidrBlock" : { "Fn::Join" : [ "", [
-					{ "Ref" : "VpcPrefix" }, ".", { "Ref" : "Subnet2Suffix" }, ".0/24"
+					{ "Ref" : "VpcPrefix" }, ".", { "Ref" : "Subnet2Suffix" }, "/28"
 				]]},
 				"AvailabilityZone": { "Fn::Select": [
 					"1", {"Fn::If" : [ "IsAzSupplied", {"Ref" : "AvailableAzs"}, { "Fn::GetAZs": "" } ]}
 				]},
-				"Tags" : []
+				"Tags" : [],
+				"MapPublicIpOnLaunch" : "True"
 			}
 		},
-        "Nat2" : {
-            "Type" : "AWS::EC2::NatGateway",
-            "Properties" : {
-                "AllocationId" : { "Fn::GetAtt" : ["Eip2", "AllocationId"]},
-                "SubnetId" : { "Ref" : "NatServerSubnet2"}
-            }
-        },
-        "Eip2" : {
-            "Type" : "AWS::EC2::EIP",
-            "Properties" : {
-                "Domain" : "vpc"
-            }
-        },
-        "RouteTable2" : {
-			"Type" : "AWS::EC2::RouteTable",
-			"Properties" : {
-				"VpcId" : {"Ref": "VpcId"},
-				"Tags" : []
-			}
-		},
-        "PublicRoute2" : {
-            "Type" : "AWS::EC2::Route",
-            "Properties" : {
-                "RouteTableId" : { "Ref" : "RouteTable2" },
-                "DestinationCidrBlock" : "0.0.0.0/0",
-                "NatGatewayId" : { "Ref" : "Nat2" }
-            }
-        },
 		"RouteTableAssociation2" : {
 			"Type" : "AWS::EC2::SubnetRouteTableAssociation",
 			"Properties" : {
 				"SubnetId" : { "Ref" : "Subnet2" },
-				"RouteTableId" : { "Ref" : "RouteTable2" }
+				"RouteTableId" : { "Ref" : "RouteTable" }
 			}
 		},
 		"AclAssociation2" : {
@@ -184,52 +124,21 @@
 			"Properties" : {
 				"VpcId" : { "Ref" : "VpcId" },
 				"CidrBlock" : { "Fn::Join" : [ "", [
-					{ "Ref" : "VpcPrefix" }, ".", { "Ref" : "Subnet3Suffix" }, ".0/24"
+					{ "Ref" : "VpcPrefix" }, ".", { "Ref" : "Subnet3Suffix" }, "/28"
 				]]},
 				"AvailabilityZone": { "Fn::Select": [
 					"2", {"Fn::If" : [ "IsAzSupplied", {"Ref" : "AvailableAzs"}, { "Fn::GetAZs": "" } ]}
 				]},
-				"Tags" : []
+				"Tags" : [],
+				"MapPublicIpOnLaunch" : "True"
 			}
 		},
-        "Nat3" : {
-            "Type" : "AWS::EC2::NatGateway",
-			"Condition" : "IsThreeAz",
-            "Properties" : {
-                "AllocationId" : { "Fn::GetAtt" : ["Eip3", "AllocationId"]},
-                "SubnetId" : { "Ref" : "NatServerSubnet3"}
-            }
-        },
-        "Eip3" : {
-            "Type" : "AWS::EC2::EIP",
-			"Condition" : "IsThreeAz",
-            "Properties" : {
-                "Domain" : "vpc"
-            }
-        },
-        "RouteTable3" : {
-			"Type" : "AWS::EC2::RouteTable",
-			"Condition" : "IsThreeAz",
-			"Properties" : {
-				"VpcId" : {"Ref": "VpcId"},
-				"Tags" : []
-			}
-		},
-        "PublicRoute3" : {
-            "Type" : "AWS::EC2::Route",
-			"Condition" : "IsThreeAz",
-            "Properties" : {
-                "RouteTableId" : { "Ref" : "RouteTable3" },
-                "DestinationCidrBlock" : "0.0.0.0/0",
-                "NatGatewayId" : { "Ref" : "Nat3" }
-            }
-        },
 		"RouteTableAssociation3" : {
 			"Type" : "AWS::EC2::SubnetRouteTableAssociation",
 			"Condition" : "IsThreeAz",
 			"Properties" : {
 				"SubnetId" : { "Ref" : "Subnet3" },
-				"RouteTableId" : { "Ref" : "RouteTable3" }
+				"RouteTableId" : { "Ref" : "RouteTable" }
 			}
 		},
 		"AclAssociation3" : {
@@ -238,6 +147,22 @@
 			"Properties" : {
 				"SubnetId" : { "Ref" : "Subnet3" },
 				"NetworkAclId" : { "Ref" : "Acl" }
+			}
+		},
+
+		"RouteTable" : {
+			"Type" : "AWS::EC2::RouteTable",
+			"Properties" : {
+				"VpcId" : {"Ref": "VpcId"},
+				"Tags" : []
+			}
+		},
+		"PublicRoute" : {
+			"Type" : "AWS::EC2::Route",
+			"Properties" : {
+				"RouteTableId" : { "Ref" : "RouteTable" },
+				"DestinationCidrBlock" : "0.0.0.0/0",
+				"GatewayId" : { "Ref" : "InternetGateway" }
 			}
 		},
 
@@ -272,7 +197,7 @@
 				"RuleAction" : "allow",
 				"Egress" : "false",
 				"CidrBlock" : "0.0.0.0/0",
-				"PortRange" : { "From" : "32768", "To" : "65535" }
+				"PortRange" : { "From" : "1024", "To" : "65535" }
 			}
 		},
 		"AclEntryOutPublicRequests" : {
@@ -299,6 +224,18 @@
 					{ "Ref" : "VpcPrefix" }, ".0.0/16"
 				]]},
 				"PortRange" : { "From" : "32768", "To" : "65535" }
+			}
+		},
+		
+		"RedShiftClusteredSubnetGroup" : {
+			"Type": "AWS::Redshift::ClusterSubnetGroup",
+			"Properties": {
+				"Description": "Redshift Cluster Subnet Group for Internet Accessable Subnets",
+				"SubnetIds": [
+					{"Ref": "Subnet1"},
+					{"Ref": "Subnet2"},
+					{"Fn::If":["IsThreeAz",{"Ref": "Subnet3"},{"Ref" : "AWS::NoValue"}]}
+				]
 			}
 		}
 	}
