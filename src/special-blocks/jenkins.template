@@ -129,18 +129,13 @@
 			"Description" : "VPCid associated with the subnets. [subnets.parameters.VpcId]",
 			"Type": "String"
 		},
-		"Subnet1Id": {
-			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet1]",
+		"ElbSubnet1Id": {
+			"Description" : "Subnet to run HA web cluster on. [elb.resources.ElbSubnet1]",
 			"Type": "String"
 		},
-		"Subnet2Id": {
-			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet2]",
+		"PvtSubnet1Id": {
+			"Description" : "Subnet to run HA web cluster on. [elb.resources.PvtWebSubnet1]",
 			"Type": "String"
-		},
-		"Subnet3Id": {
-			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet3]",
-			"Type": "String",
-			"Default": ""
 		},
 		"TemplateBaseUrl": {
 			"Description" : "Additional resources are expected from this url; pom.xml",
@@ -211,7 +206,7 @@
 		"HttpGateway" : {
 			"Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
 			"Properties" : {
-				"Subnets": [{ "Ref" : "Subnet1Id"}],
+				"Subnets": [{ "Ref" : "ElbSubnet1Id"}],
 				"Listeners" : [
 					{
 						"LoadBalancerPort" : "80",
@@ -247,7 +242,10 @@
 					"IsPublicFacingCondition",
 					"internet-facing",
 					"internal"
-				]}
+				]},
+				"Instances" : [
+					{"Ref":"JenkinsMaster"}
+				]
 			}
 		},
 		
@@ -276,7 +274,7 @@
 					{ "Ref" : "ServerSg" },
 					{ "Ref" : "ElbTargetSg" }
 				],
-				"SubnetId": { "Ref" : "Subnet1Id"},
+				"SubnetId": { "Ref" : "PvtSubnet1Id"},
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
 					"#!/bin/bash\n",
                     "ifconfig eth0 mtu 1500\n",
@@ -438,7 +436,7 @@
 			"Type" : "AWS::AutoScaling::AutoScalingGroup",
 			"Properties" : {
 				"VPCZoneIdentifier": [
-					{ "Ref" : "Subnet1Id" }
+					{ "Ref" : "PvtSubnet1Id" }
 				],
 				"AvailabilityZones": [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
 				"LaunchConfigurationName" : { "Ref" : "JenkinsWindowsSlaveLc" },
@@ -541,7 +539,7 @@
 			"Type" : "AWS::AutoScaling::AutoScalingGroup",
 			"Properties" : {
 				"VPCZoneIdentifier": [
-					{ "Ref" : "Subnet1Id" }
+					{ "Ref" : "PvtSubnet1Id" }
 				],
 				"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
 				"LaunchConfigurationName" : { "Ref" : "JenkinsLinuxSlaveLc" },
