@@ -53,7 +53,7 @@
 		"LogstashDocker": {
 			"Description": "Name of cluster. This is used for discovery.",
 			"Type": "String",
-			"Default": "sleepersmith/aws-lego-cwlstashing"
+			"Default": "sleepersmith/aws-lego-cwlstashing:v0.1.0"
 		},
 		"VpcTrafficLogGroupName" : {
 			"Description": "Name of VPC traffic log group. [vpc.resources.VpcTrafficLog]",
@@ -97,7 +97,7 @@
 		"LogstashSqsDocker": {
 			"Description": "Name of cluster. This is used for discovery.",
 			"Type": "String",
-			"Default": "sleepersmith/aws-lego-sqs3logstashing"
+			"Default": "sleepersmith/aws-lego-sqs3logstashing:v0.1.0"
 		}
 	},
 

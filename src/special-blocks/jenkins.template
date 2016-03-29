@@ -223,6 +223,35 @@
 			}
 		},
 
+		"WebServersRole" : {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [{
+						"Effect": "Allow",
+						"Principal": {
+							"Service": [ "ec2.amazonaws.com" ]
+						},
+						"Action": [ "sts:AssumeRole" ]
+					}]
+				},
+				"Path": "/devops/jenkins/",
+				"ManagedPolicyArns" : [
+					{"Fn::If":["HasDeploymentBucketMp",
+						{"Ref":"DeploymentBucketMp"}, {"Ref":"AWS::NoValue"}
+					]}
+				]
+			}
+		},
+		"WebServersInstanceProfile" : {
+			"Type": "AWS::IAM::InstanceProfile",
+			"Properties": {
+				"Path": "/devops/jenkins/",
+				"Roles": [{"Ref" : "WebServersRole"}]
+			}
+		},
+
 		"JenkinsWindowsSlaveLc" : {
 			"Type" : "AWS::AutoScaling::LaunchConfiguration",
 			"Metadata"  : {
@@ -337,74 +366,6 @@
 				"Tags" : [{"Key": "Name", "Value" : "Jenkins Slave", "PropagateAtLaunch" : "True"}]
 			}
 		},
-		"JenkinsWindowsSlaveSpotLc" : {
-			"Type" : "AWS::AutoScaling::LaunchConfiguration",
-			"Properties": {
-				"InstanceType" : { "Ref" : "AgentSpotInstanceType" },
-				"ImageId" : { "Ref" : "WindowsAgentAmi" },
-				"KeyName" : { "Ref" : "KeyPairName" },
-				"AssociatePublicIpAddress": "false",
-				"SecurityGroups": [
-					{ "Ref" : "AgentSg" }
-				],
-				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
-					"<script>\n",
-                    "cfn-init.exe -v -c config -s ", { "Ref": "AWS::StackId" }, " -r JenkinsWindowsSlaveLc ", " --region ", { "Ref": "AWS::Region" }, "\n",
-                    "</script>"
-				]]}},
-				"BlockDeviceMappings": [
-					{ "DeviceName" : "/dev/sda1", "Ebs" : { "VolumeSize" : "80", "VolumeType" : "gp2" } },
-					{ "DeviceName": "xvdb", "VirtualName": "ephemeral0" },
-					{ "DeviceName": "xvdc", "VirtualName": "ephemeral1" }
-				],
-				"SpotPrice": { "Fn::FindInMap": [ "InstanceVariables", { "Ref": "AgentSpotInstanceType" }, "wspotprice" ] }
-			}
-		},
-		"WebServersRole" : {
-		"Type": "AWS::IAM::Role",
-		"Properties": {
-			"AssumeRolePolicyDocument": {
-				"Version": "2012-10-17",
-				"Statement": [
-					{
-						"Effect": "Allow",
-						"Principal": {
-							"Service": [ "ec2.amazonaws.com" ]
-						},
-						"Action": [ "sts:AssumeRole" ]
-					}
-				]
-			},
-			"Path": "/devops/jenkins/",
-			"ManagedPolicyArns" : [
-				{"Fn::If":["HasDeploymentBucketMp",
-					{"Ref":"DeploymentBucketMp"}, {"Ref":"AWS::NoValue"}
-				]}
-			]
-		}
-	},
-	"WebServersInstanceProfile" : {
-		"Type": "AWS::IAM::InstanceProfile",
-		"Properties": {
-			"Path": "/devops/jenkins/",
-			"Roles": [{"Ref" : "WebServersRole"}]
-		}
-	},
-		"JenkinsWindowsSlaveSpotAsg" : {
-			"Type" : "AWS::AutoScaling::AutoScalingGroup",
-			"Properties" : {
-				"VPCZoneIdentifier": [
-					{ "Ref" : "Subnet1Id" }
-				],
-				"AvailabilityZones" : [{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]}],
-				"LaunchConfigurationName" : { "Ref" : "JenkinsWindowsSlaveSpotLc" },
-				"MinSize" : "0",
-				"MaxSize" : "20",
-				"DesiredCapacity" : "0",
-				"Tags" : [{"Key": "Name", "Value" : "Jenkins Slave Spot", "PropagateAtLaunch" : "True"}]
-			}
-		},
-
 		"JenkinsLinuxSlaveLc" : {
 			"Type" : "AWS::AutoScaling::LaunchConfiguration",
 			"Metadata" : {
@@ -508,7 +469,6 @@
 				"Tags" : [{"Key": "Name", "Value" : "Jenkins Slave", "PropagateAtLaunch" : "True"}]
 			}
 		},
-		
 
 		"ServerSg" : {
 			"Type" : "AWS::EC2::SecurityGroup",

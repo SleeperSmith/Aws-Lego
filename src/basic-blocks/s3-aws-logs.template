@@ -9,8 +9,20 @@
 		"AccessLogBucketName" : {
 			"Description" : "Bucket name for raw logs from s3 bucket and cloud front.",
 			"Type" : "String"
+		},
+		"IsSubscribed" : {
+			"Description": "Hostname of Elasticsearch [elasticsearch.outputs.EsElb]",
+			"Type": "String",
+            "AllowedValues": ["subscribe", "unsubscribe"],
+            "Default": "unsubscribe"
 		}
 	},
+
+	"Conditions" : {
+        "Subscribe" : {"Fn::Equals" : [{"Ref" : "IsSubscribed"}, "subscribe"]}
+    },
+
+
 	"Resources" : {
 		"AccessLog" : {
 			"Type" : "AWS::S3::Bucket",
@@ -308,8 +320,187 @@
                     }
                 }]
             }
-        }
+        },
+		"GlobalCloudTrailLogSub" : {
+			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
+			"Type" : "AWS::Logs::SubscriptionFilter",
+            "Condition" : "Subscribe",
+			"Properties" : {
+				"DestinationArn" : { "Fn::GetAtt" : ["LogStream","Arn"] },
+				"FilterPattern" : "",
+				"LogGroupName" : {"Ref":"GlobalCloudTrailLog"},
+				"RoleArn" : { "Fn::GetAtt" : [ "LogStreamRole", "Arn" ] }
+			}
+		},
+
+		"VpcTrafficLog" : {
+            "Type" : "AWS::Logs::LogGroup",
+            "Properties" : {
+            }
+		},
+		"VpcTrafficLogSub" : {
+			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
+			"Type" : "AWS::Logs::SubscriptionFilter",
+            "Condition" : "Subscribe",
+			"Properties" : {
+				"DestinationArn" : { "Fn::GetAtt" : ["LogStream","Arn"] },
+				"FilterPattern" : "[version, account_id, interface_id, srcaddr, dstaddr, srcport, dstport, protocol, packets, bytes, start, end, action, log_status]",
+				"LogGroupName" : {"Ref":"VpcTrafficLog"},
+				"RoleArn" : { "Fn::GetAtt" : [ "LogStreamRole", "Arn" ] }
+			}
+		},
+
+        "LxSysLog" : {
+            "Type" : "AWS::Logs::LogGroup",
+            "Properties" : {
+            }
+        },
+		"LxSysLogLogSub" : {
+			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
+			"Type" : "AWS::Logs::SubscriptionFilter",
+            "Condition" : "Subscribe",
+			"Properties" : {
+				"DestinationArn" : { "Fn::GetAtt" : ["LogStream","Arn"] },
+				"FilterPattern" : "",
+				"LogGroupName" : {"Ref":"LxSysLog"},
+				"RoleArn" : { "Fn::GetAtt" : [ "LogStreamRole", "Arn" ] }
+			}
+		},
+
+		"LxAuthLog" : {
+            "Type" : "AWS::Logs::LogGroup",
+            "Properties" : {
+            }
+		},
+		"LxAuthLogSub" : {
+			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
+			"Type" : "AWS::Logs::SubscriptionFilter",
+            "Condition" : "Subscribe",
+			"Properties" : {
+				"DestinationArn" : { "Fn::GetAtt" : ["LogStream","Arn"] },
+				"FilterPattern" : "",
+				"LogGroupName" : {"Ref":"LxAuthLog"},
+				"RoleArn" : { "Fn::GetAtt" : [ "LogStreamRole", "Arn" ] }
+			}
+		},
+
+		"LxDockerLog" : {
+            "Type" : "AWS::Logs::LogGroup",
+            "Properties" : {
+            }
+		},
+		"LxDockerLogSub" : {
+			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
+			"Type" : "AWS::Logs::SubscriptionFilter",
+            "Condition" : "Subscribe",
+			"Properties" : {
+				"DestinationArn" : { "Fn::GetAtt" : ["LogStream","Arn"] },
+				"FilterPattern" : "",
+				"LogGroupName" : {"Ref":"LxDockerLog"},
+				"RoleArn" : { "Fn::GetAtt" : [ "LogStreamRole", "Arn" ] }
+			}
+		},
+
+		"LinuxLogPolicy" : {
+			"Type": "AWS::IAM::ManagedPolicy",
+			"Properties": {
+				"Path" : "/log/linux/",
+				"PolicyDocument" : {
+					"Version": "2012-10-17",
+					"Statement": [{
+						"Effect": "Allow",
+						"Action": [
+							"cloudwatch:PutMetricData",
+							"ec2:DescribeTags"
+						],
+						"Resource": ["*"]
+					},{
+						"Effect": "Allow",
+						"Action": [
+							"logs:CreateLogGroup",
+							"logs:CreateLogStream",
+							"logs:PutLogEvents",
+							"logs:DescribeLogGroups",
+							"logs:DescribeLogStreams"
+						],
+						"Resource": [
+							{ "Fn::GetAtt" : ["LxSysLog","Arn"] },
+							{ "Fn::GetAtt" : ["LxAuthLog","Arn"] },
+							{ "Fn::GetAtt" : ["LxDockerLog","Arn"] }
+						]
+					}]
+				}
+			}
+		},
+
+		"LogStream" : {
+			"Type" : "AWS::Kinesis::Stream",
+			"Properties" : {
+				"ShardCount" : 1
+			}
+		},
+		"LogStreamRole" : {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument" : {
+					"Version": "2012-10-17",
+					"Statement": [{
+						"Effect": "Allow",
+						"Principal": { 
+							"Service": { "Fn::Join": ["", [
+								"logs.", { "Ref": "AWS::Region" } ,".amazonaws.com"
+							]]}
+						},
+						"Action": "sts:AssumeRole"
+					}]
+				}
+			}
+		},
+		"LogStreamRolePolicy": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"PolicyName": "KinesisPutRecordPolicy",
+				"Roles": [ { "Ref": "LogStreamRole" } ],
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": "kinesis:PutRecord",
+							"Resource": { "Fn::GetAtt" : ["LogStream","Arn"] }
+						},
+						{
+							"Effect": "Allow",
+							"Action": "iam:PassRole",
+							"Resource": { "Fn::Join" : ["", [
+								"arn:aws:iam::", { "Ref": "AWS::AccountId" }, ":role/", { "Ref": "LogStreamRole" }
+							]]}
+						}
+					]
+				}
+			}
+		}
+
+
 	},
 	"Outputs" : {
+		"S3Prefix" : {
+			"Value" : "s3-access"
+		},
+		"CfPrefix" : {
+			"Value" : "cf-access"
+		},
+		"LxDockerLogParams" : {
+			"Value":{"Fn::Join":["",[
+				"--log-driver=awslogs ",
+				"--log-opt awslogs-group=", {"Ref":"LxDockerLog"}
+			]]}
+		},
+		"DockerCwlParams" : {
+			"Value":{"Fn::Join":["",[
+				"-e SYSLOG=", {"Ref":"LxSysLog"}, " ",
+				"-e AUTHLOG=", {"Ref":"LxAuthLog"}
+			]]}
+		}
 	}
 }
