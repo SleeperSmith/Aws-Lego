@@ -57,6 +57,77 @@
 				"VpcId" : { "Ref" : "Vpc" },
 				"InternetGatewayId" : { "Ref" : "InternetGateway" }
 			}
+		},
+
+		"HttpNsSecGroup" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Metadata" : {
+				"Comment" : {"Fn::Join": [" ", [
+					"A security group to allow inbound http(s) traffic."
+				]]}
+			},
+			"Properties" :
+			{
+				"GroupDescription" : "A generic security group for targets that serve http(s) traffic.",
+				"SecurityGroupEgress" : [
+					{ "CidrIp": "127.0.0.1/32", "IpProtocol": "-1" }
+				],
+				"SecurityGroupIngress" : [
+					{ "IpProtocol" : "6" , "CidrIp": "0.0.0.0/0", "FromPort" : "80", "ToPort" : "80" },
+					{ "IpProtocol" : "6" , "CidrIp": "0.0.0.0/0", "FromPort" : "443", "ToPort" : "443" }
+				],
+				"Tags" : [{"Key": "Name", "Value" : "Http(s)"}],
+				"VpcId" : {"Ref":"Vpc"}
+			}
+		},
+
+		"ElbSecGroup" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Metadata" : {
+				"Comment" : {"Fn::Join": [" ", [
+					"ELBs are managed by AWS, therefore there shouldn't be any trust issue allowing",
+					"ELBs from different stacks to 'cross talk' to web servers from another",
+					"application stack."
+				]]}
+			},
+			"Properties" : {
+				"GroupDescription" : "A generic security group for the elbs.",
+				"SecurityGroupEgress" : [
+					{ "IpProtocol" : "-1" , "DestinationSecurityGroupId" : { "Ref" : "ElbTargetSecGroup" } }
+				],
+				"SecurityGroupIngress" : [],
+				"Tags" : [{"Key": "Name", "Value" : "Elb-Web(Elb)"}],
+				"VpcId" : {"Ref":"Vpc"}
+			}
+		},
+		
+		"ElbTargetSecGroup" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Metadata" : {
+				"Comment" : {"Fn::Join": [" ", [
+					"ELBs are managed by AWS, therefore there shouldn't be any trust issue allowing",
+					"ELBs from different stacks to 'cross talk' to web servers from another",
+					"application stack."
+				]]}
+			},
+			"Properties" : {
+				"GroupDescription" : "A generic security group for the elb targets.",
+				"SecurityGroupEgress" : [
+					{ "CidrIp": "127.0.0.1/32", "IpProtocol": "-1" }
+				],
+				"SecurityGroupIngress" : [],
+				"Tags" : [{"Key": "Name", "Value" : "Elb-Web(Web)"}],
+				"VpcId" : {"Ref":"Vpc"}
+			}
+		},
+
+		"ElbWebServerSecGroupIngress" : {
+			"Type" : "AWS::EC2::SecurityGroupIngress",
+			"Properties" : {
+				"GroupId" : {"Ref": "ElbTargetSecGroup"},
+				"IpProtocol" : "-1",
+				"SourceSecurityGroupId" : {"Ref":"ElbSecGroup"}
+			}
 		}
 
 	},
