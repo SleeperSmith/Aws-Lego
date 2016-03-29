@@ -103,6 +103,11 @@
 			"Default": "jenkins:1.642.2",
 			"Type": "String"
 		},
+		"JenkinsLxAgentContainer": {
+			"Description": "Jenkins swarm agent container name with tag.",
+			"Default": "sleepersmith/aws-lego-jenkinslxagent:v0.1.0",
+			"Type": "String"
+		},
 		"JavaWindowsInstaller": {
 			"Description": "Url to download Go windows agent binary from.",
 			"Default": "http://javadl.sun.com/webapps/download/AutoDL?BundleId=104768",
@@ -167,6 +172,24 @@
 		"RawLogBucket" : {
 			"Description": "Elb Target Security Group. [s3-aws-logs.resources.Raw]",
             "Type": "String"
+		},
+
+		"CwlUbuntuAgentDocker": {
+			"Description": "Name of cluster. This is used for discovery.",
+			"Type": "String",
+			"Default": "sleepersmith/aws-lego-awscwlagent-ubuntu:v0.2.0"
+		},
+		"CwlLinuxParams" : {
+			"Description": "Environment variables for syslog and authlog cwl group names [s3-aws-logs.outputs.LxDockerLogParams]",
+			"Type": "String"
+		},
+		"CwlDockerParams" : {
+			"Description": "Docker log driver params [s3-aws-logs.outputs.DockerCwlParams]",
+			"Type": "String"
+		},
+		"CwlPolicy" : {
+			"Description": "Managed policy for linux logging. [s3-aws-logs.resources.LinuxLogPolicy]",
+			"Type": "String"
 		}
 	},
 
@@ -267,6 +290,7 @@
 		"JenkinsMaster" : {
 			"Type" : "AWS::EC2::Instance",
 			"Properties" : {
+				"IamInstanceProfile" : {"Ref":"WebServersInstanceProfile"},
 				"InstanceType" : { "Ref" : "ServerInstanceType" },
 				"ImageId" : { "Ref" : "ServerAmi" },
 				"KeyName" : { "Ref" : "KeyPairName" },
@@ -285,7 +309,21 @@
 					"mount -t ext4 /dev/xvdb /mnt/xvdb\n",
 					"chown -R 1000 /mnt/xvdb\n",
 
+					"ECID=$(curl http://instance-data/latest/meta-data/instance-id)\n",
+					"CWLA=cwlagent_$ECID\n",
+					"docker run -d --restart=always ",
+						"--name $CWLA --log-opt awslogs-stream=$CWLA ",
+						"-v /var/log:/var/log-host:ro ",
+						{"Ref":"CwlLinuxParams"}," ",
+						{"Ref":"CwlDockerParams"}," ",
+						{"Ref":"CwlUbuntuAgentDocker"},"\n",
+					"docker run -d --restart=always --name cwlcron ",
+						{"Ref":"CwlUbuntuAgentDocker"}," cron\n",
+
+					"JENKINS_MASTER=jenkins-master_$ECID\n",
                     "docker run -d --restart=always -p 8080:8080 -p 50000:50000 -v /mnt/xvdb:/var/jenkins_home ",
+						"--name $JENKINS_MASTER --log-opt awslogs-stream=$JENKINS_MASTER ",
+						{"Ref":"CwlLinuxParams"}," ",
                         {"Ref":"JenkinsContainer"}
 				]]}},
 				"BlockDeviceMappings": [
@@ -320,7 +358,8 @@
 				"ManagedPolicyArns" : [
 					{"Fn::If":["HasDeploymentBucketMp",
 						{"Ref":"DeploymentBucketMp"}, {"Ref":"AWS::NoValue"}
-					]}
+					]},
+					{"Ref":"CwlPolicy"}
 				]
 			}
 		},
@@ -448,72 +487,6 @@
 		},
 		"JenkinsLinuxSlaveLc" : {
 			"Type" : "AWS::AutoScaling::LaunchConfiguration",
-			"Metadata" : {
-				"AWS::CloudFormation::Authentication" : { "Fn::If":["HasDeploymentBucketMp", {
-					"DeploymentAccess": {
-						"type":"S3",
-						"roleName":{
-							"Ref":"WebServersRole"
-						}
-					}
-				}, {"Ref":"AWS::NoValue"}]},
-				"AWS::CloudFormation::Init" : {
-					"configSets": {
-						"config": [
-							"setup"
-						]
-					},
-					"setup" : {
-						"files" : {
-							"/home/local/swarm-client-with-dependencies.jar" : {
-								"source": { "Ref": "JenkinsSwarmJar" },
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							},
-							"/home/local/jenkins-setup.sh" : {
-								"source" : { "Fn::Join" : ["", [
-									{"Ref":"TemplateBaseUrl"},"jenkins-setup.sh"
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu",
-								"authentication" : {"Fn::If":["HasDeploymentBucketMp",
-									"DeploymentAccess", {"Ref":"AWS::NoValue"}
-								]}
-							},
-							"/etc/init/jenkins-slave.conf" : {
-								"content" : { "Fn::Join" : ["", [
-									"script\n",
-									"    java -jar /home/local/swarm-client-with-dependencies.jar ",
-										"-master http://", { "Fn::GetAtt" : ["JenkinsMaster", "PrivateIp"] }, ":8080 ",
-										"-username ", {"Ref": "JenkinsAgentUsername"}, " -password ", {"Ref": "JenkinsAgentPassword"}, " ",
-										"-name lin-$(curl -s http://169.254.169.254/latest/meta-data/instance-id) ",
-										"-description $(curl -s http://169.254.169.254/latest/meta-data/local-ipv4) ",
-										"-executors 2 -labels linux\n",
-									"end script\n",
-									"respawn limit 3 60"
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							}
-						},
-						"commands" : {
-							
-							"1-misc-configs" : {
-								"command" : "bash ./jenkins-setup.sh",
-								"cwd" : "/home/local",
-								"ignoreErrors" : "true"
-							},
-							"3-start-agent" : {
-								"command" : "service jenkins-slave start",
-								"cwd" : "/home/local"
-							}
-						}
-					}
-				}
-			},
 			"Properties": {
 				"InstanceType" : { "Ref" : "AgentInstanceType" },
 				"ImageId" : { "Ref" : "LinuxAgentAmi" },
@@ -525,10 +498,29 @@
 				],
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
 					"#!/bin/bash\n",
-					"apt-get update\n",
-					"apt-get -y install python-setuptools default-jre\n",
-					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
-					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r JenkinsLinuxSlaveLc -c config\n"
+                    "ifconfig eth0 mtu 1500\n",
+                    "wget -qO- https://get.docker.com/ | sh\n",
+
+					"ECID=$(curl http://instance-data/latest/meta-data/instance-id)\n",
+					"CWLA=cwlagent_$ECID\n",
+					"docker run -d --restart=always ",
+						"--name $CWLA --log-opt awslogs-stream=$CWLA ",
+						"-v /var/log:/var/log-host:ro ",
+						{"Ref":"CwlLinuxParams"}," ",
+						{"Ref":"CwlDockerParams"}," ",
+						{"Ref":"CwlUbuntuAgentDocker"},"\n",
+					"docker run -d --restart=always --name cwlcron ",
+						{"Ref":"CwlUbuntuAgentDocker"}," cron\n",
+
+					"JENKINS_AGENT=jenkins-linux-agent_$ECID\n",
+                    "docker run -d --restart=always ",
+						"--name $JENKINS_AGENT --log-opt awslogs-stream=$JENKINS_AGENT ",
+						{"Ref":"CwlLinuxParams"}," ",
+						"-e JENKINS_HOST=",{ "Fn::GetAtt" : ["JenkinsMaster", "PrivateIp"] }," ",
+						"-e JENKINS_USERNAME=",{"Ref":"JenkinsAgentUsername"}," ",
+						"-e JENKINS_PASSWORD=",{"Ref":"JenkinsAgentPassword"}," ",
+						"-e EXECUTOR_COUNT=2 ",
+                        {"Ref":"JenkinsLxAgentContainer"}
 				]]}},
 				"BlockDeviceMappings" : [
 					{ "DeviceName" : "/dev/sda1", "Ebs" : { "VolumeSize" : "30", "VolumeType" : "gp2" } }
