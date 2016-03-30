@@ -56,7 +56,7 @@
 			"Default": "sleepersmith/aws-lego-cwlstashing:v0.1.0"
 		},
 		"VpcTrafficLogGroupName" : {
-			"Description": "Name of VPC traffic log group. [vpc.resources.VpcTrafficLog]",
+			"Description": "Name of VPC traffic log group. [s3-aws-logs.resources.VpcTrafficLog]",
 			"Type": "String"
 		},
 		"CloudTrailLogGroupName" : {
