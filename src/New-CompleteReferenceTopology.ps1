@@ -8,6 +8,7 @@
 
 .".\Deployment.ps1"
 
+
 Get-StackLinkParameters -TemplateUrl "$($prefix)basic-blocks/vpc.template" |
     Upsert-StackLink -Tags $tags -StackName Prod-PrimaryVpc |
     Wait-StackLink
@@ -24,8 +25,12 @@ Get-StackLinkParameters -TemplateUrl "$($prefix)basic-blocks/private.subnets.tem
     Upsert-StackLink -Tags $tags -StackName Prod-PrivateSubnets |
     Wait-StackLink
 
-Get-StackLinkParameters -TemplateUrl "$($prefix)basic-blocks/nat-enabled.subnets.template" |
+Get-StackLinkParameters -TemplateUrl "$($prefix)basic-blocks/nat-enabling.subnets.template" |
     Upsert-StackLink -Tags $tags -StackName Prod-NatSubnets |
+    Wait-StackLink
+
+Get-StackLinkParameters -TemplateUrl "$($prefix)basic-blocks/nat-enabled.subnets.template"  |
+    Upsert-StackLink -Tags $tags -StackName Prod-NatGateway |
     Wait-StackLink
 
 Get-StackLinkParameters -TemplateUrl "$($prefix)basic-blocks/elb.subnets.template" |
