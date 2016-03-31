@@ -1,5 +1,5 @@
 ﻿param(
-    $prefix = "https://s3-ap-southeast-2.amazonaws.com/momo-deployment/aws-lego/2/",
+    $prefix = "https://s3-ap-southeast-2.amazonaws.com/bc-public-releases/AWS-Lego/Alpha/",
     $tags = @(
         @{"Key" = "Project"; "Value" = "Infrastructure"},
         @{"Key" = "Environment"; "Value" = "Prod"}
