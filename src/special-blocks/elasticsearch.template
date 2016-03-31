@@ -98,6 +98,11 @@
 			"Type": "String",
 			"Default": "sleepersmith/aws-lego-elasticsearch:v0.1.0"
 		},
+		"KibanaContainerName": {
+			"Description": "Name of container to run elasticsearch.",
+			"Type": "String",
+			"Default": "kibana:4.4"
+		},
 		"AzCount" : {
 			"Description" : "Number of AZ. Third subnet will only be created if number is 3 [vpc.outputs.AzCount]",
 			"Type" : "String"
@@ -326,7 +331,7 @@
 					"docker run --name kibana -p 80:5601 -d --restart=always ",
 						"--name $KDN --log-opt awslogs-stream=$KDN ",
 						{"Ref":"CwlLinuxParams"}," ",
-						" -e ELASTICSEARCH_URL=http://", {"Fn::GetAtt":["EsMasterLoadBalancer","DNSName"]}, ":9200 kibana\n"
+						" -e ELASTICSEARCH_URL=http://", {"Fn::GetAtt":["EsMasterLoadBalancer","DNSName"]}, ":9200 ", {"Ref":"KibanaContainerName"}
 				]]}},
 				"BlockDeviceMappings" : [
 					{

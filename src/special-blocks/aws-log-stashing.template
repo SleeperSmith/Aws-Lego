@@ -211,8 +211,7 @@
 			"Properties" : {
 				"GroupDescription" : "Security group for logstash nodes.",
 				"SecurityGroupEgress" : [
-					{ "IpProtocol" : "6" ,  "CidrIp": "0.0.0.0/0", "FromPort" : "80", "ToPort" : "80"  },
-					{ "IpProtocol" : "6" ,  "CidrIp": "0.0.0.0/0", "FromPort" : "443", "ToPort" : "443"  }
+					{ "IpProtocol" : "-1" ,  "CidrIp": "0.0.0.0/0", "FromPort" : "0", "ToPort" : "65535"  }
 				],
 				"VpcId" : { "Ref" : "VpcId"},
 				"Tags": [{"Key": "Name", "Value" : "Ls Nodes"}]
