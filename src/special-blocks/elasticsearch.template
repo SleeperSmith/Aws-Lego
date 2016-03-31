@@ -514,6 +514,9 @@
 			"Type" : "AWS::EC2::SecurityGroup",
 			"Properties" : {
 				"GroupDescription" : "Gateway to master nodes of the Elasticsearch Cluster",
+				"SecurityGroupIngress" : [
+					{ "IpProtocol" : "6" ,  "CidrIp": "0.0.0.0/0", "FromPort" : "9200", "ToPort" : "9200"  }
+				],
 				"VpcId" : { "Ref" : "VpcId"},
 				"Tags": [{"Key": "Name", "Value" : "Es Cluster Load Balancer"}]
 			}
