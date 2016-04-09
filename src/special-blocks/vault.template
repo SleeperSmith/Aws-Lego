@@ -1,0 +1,318 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+
+	"Description": "A template to launch elasticsearch cluster.",
+
+	"Parameters": {
+		"KeyPairName": {
+			"Description": "Name of an existing EC2 KeyPair to enable SSH access to the instances",
+			"Type": "AWS::EC2::KeyPair::KeyName"
+		},
+
+		"NodeType" : {
+			"Description" : "Logstash EC2 instance type",
+			"Type" : "String",
+			"Default" : "t2.micro",
+			"AllowedValues": [
+				"t2.micro",
+				"t2.small",
+				"t2.medium",
+				"t2.large",
+				"m3.medium",
+				"m4.large",
+				"m4.xlarge",
+				"m4.2xlarge",
+				"r3.large",
+				"r3.xlarge",
+				"r3.2xlarge",
+				"r3.4xlarge",
+				"r3.8xlarge"
+			],
+			"ConstraintDescription" : "must be a valid EC2 instance type."
+		},
+		"UbuntuAmi": {
+			"Description": "AMI to use. Note Ubuntu is prefered.",
+			"Type": "AWS::EC2::Image::Id"
+		},
+		"Hostname" : {
+			"Description": "Hostname that will be attached to the ELB.",
+			"Type": "String"
+		},
+
+		"VpcId": {
+			"Description" : "VPCid associated with the subnets. [nat-enabled.parameters.VpcId]",
+			"Type": "AWS::EC2::VPC::Id"
+		},
+		"ElbSubnet1Id": {
+			"Description": "Subnet to run HA web cluster on. [elb.resources.ElbSubnet1]",
+			"Type": "AWS::EC2::Subnet::Id"
+		},
+		"ElbSubnet2Id": {
+			"Description": "Subnet to run HA web cluster on. [elb.resources.ElbSubnet2]",
+			"Type": "AWS::EC2::Subnet::Id"
+		},
+		"ElbSubnet3Id": {
+			"Description": "Subnet to run HA web cluster on. [elb.resources.ElbSubnet3]",
+			"Type": "String",
+			"Default" : ""
+		},
+		"WebServerSubnet1Id": {
+			"Description": "Subnet to run HA web cluster on. [elb.resources.PvtWebSubnet1]",
+			"Type": "AWS::EC2::Subnet::Id"
+		},
+		"WebServerSubnet2Id": {
+			"Description": "Subnet to run HA web cluster on. [elb.resources.PvtWebSubnet2]",
+			"Type": "AWS::EC2::Subnet::Id"
+		},
+		"WebServerSubnet3Id": {
+			"Description": "Subnet to run HA web cluster on. [elb.resources.PvtWebSubnet3]",
+			"Type": "AWS::EC2::Subnet::Id"
+		},
+
+		"SslCertId": {
+			"Description": "Id of the SSL certificate to use.",
+			"Type": "String",
+			"Default" : ""
+		},
+		"AccessLogBucket": {
+			"Description": "Image id of the frontend [s3-aws-logs.resources.Raw]",
+			"Type": "String"
+		},
+		"ElbSg": {
+			"Description": "Elb security group. [vpc.resources.ElbSecGroup]",
+			"Type": "String"
+		},
+		"WebServerSg": {
+			"Description": "Web Server security group. [vpc.resources.ElbTargetSecGroup]",
+			"Type": "String"
+		},
+		"IsPublicFacing": {
+			"Description": "Is publicly accessable deployment.",
+			"Type": "String",
+			"AllowedValues": [ "true", "false" ],
+			"Default": "false",
+			"ConstraintDescription": "Valid schemes: 'internet-facing' or 'internal'."
+		},
+
+        "AccessLogBucketName" : {
+			"Description": "Hostname of Elasticsearch [s3-aws-logs.resources.AccessLog]",
+			"Type": "String"
+		},
+
+		"VaultDocker": {
+			"Description": "Docker image name for vault.",
+			"Type": "String",
+			"Default": "sleepersmith/aws-lego-vault"
+		},
+		"CwlUbuntuAgentDocker": {
+			"Description": "Name of cluster. This is used for discovery.",
+			"Type": "String",
+			"Default": "sleepersmith/aws-lego-awscwlagent-ubuntu:v0.2.0"
+		},
+		"CwlLinuxParams" : {
+			"Description": "Environment variables for syslog and authlog cwl group names [s3-aws-logs.outputs.DockerCwlParams]",
+			"Type": "String"
+		},
+		"CwlDockerParams" : {
+			"Description": "Docker log driver params [s3-aws-logs.outputs.LxDockerLogParams]",
+			"Type": "String"
+		},
+		"CwlPolicy" : {
+			"Description": "Managed policy for linux logging. [s3-aws-logs.resources.LinuxLogPolicy]",
+			"Type": "String"
+		}
+	},
+
+	"Conditions": {
+		"IsPublicFacingCondition": {
+			"Fn::Equals": [ { "Ref": "IsPublicFacing" }, "true" ]
+		}
+	},
+
+	"Resources" : {
+		"SecretBackend": {
+			"Type": "AWS::DynamoDB::Table",
+			"Properties": {
+				"TableName": { "Ref": "AWS::StackName" },
+				"ProvisionedThroughput" : {
+					"ReadCapacityUnits" : "10",
+					"WriteCapacityUnits" : "10"
+				},
+				"AttributeDefinitions" : [{
+					"AttributeName" : "Path",
+					"AttributeType" : "S"   
+				},{
+					"AttributeName" : "Key",
+					"AttributeType" : "S"   
+				}],
+				"KeySchema" : [{
+					"AttributeName" : "Path",
+					"KeyType" : "HASH"
+				},{
+					"AttributeName" : "Key",
+					"KeyType" : "RANGE"
+				}]
+			}
+		},
+		
+		"HttpGateway": {
+			"Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+			"Properties": {
+				"Subnets": [
+					{ "Ref": "ElbSubnet1Id" },
+					{ "Ref": "ElbSubnet2Id" }
+				],
+				"Listeners": [
+					{
+						"LoadBalancerPort": "80",
+						"InstancePort": "80",
+						"Protocol": "HTTP"
+					}
+				],
+				"HealthCheck": {
+					"Target": { "Fn::Join": [ "", [
+						"HTTP:80/v1/sys/health"
+					]]},
+					"HealthyThreshold": "2",
+					"UnhealthyThreshold": "2",
+					"Interval": "10",
+					"Timeout": "5"
+				},
+				"AccessLoggingPolicy": {
+				"EmitInterval": "5",
+				"Enabled": "true",
+				"S3BucketName": { "Ref": "AccessLogBucket" }
+				},
+				"SecurityGroups": [
+					{ "Ref": "ElbSg" }
+				],
+				"Scheme": { "Fn::If": [ "IsPublicFacingCondition",
+					"internet-facing",
+					"internal"
+				]}
+			}
+		},
+		"OutboundSg" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" : {
+				"GroupDescription" : "Security group for logstash nodes.",
+				"SecurityGroupEgress" : [
+					{ "IpProtocol" : "-1" ,  "CidrIp": "0.0.0.0/0", "FromPort" : "0", "ToPort" : "65535"  }
+				],
+				"VpcId" : { "Ref" : "VpcId"},
+				"Tags": [{"Key": "Name", "Value" : "Ls Nodes"}]
+			}
+		},
+
+		"WebServerAsg" : {
+			"Type" : "AWS::AutoScaling::AutoScalingGroup",
+			"Properties" : {
+				"VPCZoneIdentifier": [
+					{ "Ref" : "WebServerSubnet1Id" },
+					{ "Ref" : "WebServerSubnet2Id" }
+				],
+				"AvailabilityZones" : [
+					{ "Fn::Select": ["0",  { "Fn::GetAZs": "" }]},
+					{ "Fn::Select": ["1",  { "Fn::GetAZs": "" }]}
+				],
+				"LoadBalancerNames" : [{"Ref":"HttpGateway"}],
+				"LaunchConfigurationName" : { "Ref" : "WebServerLc" },
+				"MinSize" : "1",
+				"MaxSize" : "1",
+				"Tags" : [{"Key": "Name", "Value" : "Vault", "PropagateAtLaunch" : "True"}]
+			}
+		},
+		"WebServerLc" : {
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Properties": {
+				"InstanceType" : { "Ref" : "NodeType" },
+				"ImageId" : { "Ref" : "UbuntuAmi" },
+				"KeyName" : { "Ref" : "KeyPairName" },
+				"AssociatePublicIpAddress": "false",
+				"SecurityGroups": [
+					{ "Ref" : "WebServerSg" },
+					{ "Ref" : "OutboundSg" }
+				],
+				"IamInstanceProfile": { "Ref" : "InstanceProfile" },
+				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+                    "#!/bin/bash\n",
+                    "ifconfig eth0 mtu 1500\n",
+                    "wget -qO- https://get.docker.com/ | sh\n",
+
+					"CWLA=cwlagent-$(curl http://instance-data/latest/meta-data/instance-id)\n",
+					"docker run -d --restart=always ",
+						"--name $CWLA --log-opt awslogs-stream=$CWLA ",
+						"-v /var/log:/var/log-host:ro ",
+						{"Ref":"CwlLinuxParams"}," ",
+						{"Ref":"CwlDockerParams"}," ",
+						{"Ref":"CwlUbuntuAgentDocker"},"\n",
+
+					"VDN=vault-$(curl http://instance-data/latest/meta-data/instance-id)\n",
+					"docker run -d --restart=always --cap-add=IPC_LOCK -p 80:80 ",
+						"--name $VDN --log-opt awslogs-stream=$VDN ",
+						{"Ref":"CwlDockerParams"}," ",
+						"-e ELB_ADDRESS=", {"Ref": "Hostname"}, " ",
+						"-e DDB_TABLE=", { "Ref": "AWS::StackName" }, " ",
+						{"Ref":"VaultDocker"},"\n"
+				]]}},
+				"BlockDeviceMappings" : [
+					{
+						"DeviceName" : "/dev/sda1",
+						"Ebs" : { "VolumeSize" : "50", "VolumeType" : "gp2" }
+					}
+				]
+			}
+		},
+
+		"InstanceProfile": {
+			"Type": "AWS::IAM::InstanceProfile",
+			"Properties": {
+				"Path": "/vault/",
+				"Roles": [{ "Ref": "Role" }]
+			}
+		},
+		"Role": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": [ "ec2.amazonaws.com" ]
+							},
+							"Action": [ "sts:AssumeRole" ]
+						}
+					]
+				},
+				"Path": "/vault/",
+				"ManagedPolicyArns" : [
+					{"Ref":"CwlPolicy"}
+				]
+			}
+		},
+		"RolePolicies" : {
+			"Type" : "AWS::IAM::Policy",
+			"Properties" : {
+				"PolicyName" : "LogstashKinesisAccessPolicy",
+				"PolicyDocument": {
+					"Version" : "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": "dynamodb:*",
+							"Resource": { "Fn::Join": ["", [
+								"arn:aws:dynamodb:",{ "Ref": "AWS::Region" },":", {"Ref": "AWS::AccountId"},":table/", { "Ref": "SecretBackend" }
+							]]}
+						}
+					]
+				},
+				"Roles": [ { "Ref": "Role" } ]
+			}
+		}
+	},
+
+	"Outputs" : {
+	}
+}
