@@ -102,7 +102,7 @@
 		"VaultDocker": {
 			"Description": "Docker image name for vault.",
 			"Type": "String",
-			"Default": "sleepersmith/aws-lego-vault"
+			"Default": "sleepersmith/aws-lego-vault:v0.1.0"
 		},
 		"CwlUbuntuAgentDocker": {
 			"Description": "Name of cluster. This is used for discovery.",
