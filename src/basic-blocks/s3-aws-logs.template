@@ -9,19 +9,8 @@
 		"AccessLogBucketName" : {
 			"Description" : "Bucket name for raw logs from s3 bucket and cloud front.",
 			"Type" : "String"
-		},
-		"IsSubscribed" : {
-			"Description": "Hostname of Elasticsearch [elasticsearch.outputs.EsElb]",
-			"Type": "String",
-            "AllowedValues": ["subscribe", "unsubscribe"],
-            "Default": "unsubscribe"
 		}
 	},
-
-	"Conditions" : {
-        "Subscribe" : {"Fn::Equals" : [{"Ref" : "IsSubscribed"}, "subscribe"]}
-    },
-
 
 	"Resources" : {
 		"AccessLog" : {
@@ -227,6 +216,7 @@
 		},
 
         "GlobalCloudTrailLog" : {
+			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
             "Type" : "AWS::Logs::LogGroup",
             "Properties" : {
             }
@@ -322,9 +312,8 @@
             }
         },
 		"GlobalCloudTrailLogSub" : {
-			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
+			"DependsOn" : ["GlobalCloudTrailLog"],
 			"Type" : "AWS::Logs::SubscriptionFilter",
-            "Condition" : "Subscribe",
 			"Properties" : {
 				"DestinationArn" : { "Fn::GetAtt" : ["LogStream","Arn"] },
 				"FilterPattern" : "",
@@ -334,14 +323,14 @@
 		},
 
 		"VpcTrafficLog" : {
+			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
             "Type" : "AWS::Logs::LogGroup",
             "Properties" : {
             }
 		},
 		"VpcTrafficLogSub" : {
-			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
+			"DependsOn" : ["VpcTrafficLog"],
 			"Type" : "AWS::Logs::SubscriptionFilter",
-            "Condition" : "Subscribe",
 			"Properties" : {
 				"DestinationArn" : { "Fn::GetAtt" : ["LogStream","Arn"] },
 				"FilterPattern" : "[version, account_id, interface_id, srcaddr, dstaddr, srcport, dstport, protocol, packets, bytes, start, end, action, log_status]",
@@ -351,14 +340,14 @@
 		},
 
         "LxSysLog" : {
+			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
             "Type" : "AWS::Logs::LogGroup",
             "Properties" : {
             }
         },
 		"LxSysLogLogSub" : {
-			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
+			"DependsOn" : ["LxSysLog"],
 			"Type" : "AWS::Logs::SubscriptionFilter",
-            "Condition" : "Subscribe",
 			"Properties" : {
 				"DestinationArn" : { "Fn::GetAtt" : ["LogStream","Arn"] },
 				"FilterPattern" : "",
@@ -368,14 +357,14 @@
 		},
 
 		"LxAuthLog" : {
+			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
             "Type" : "AWS::Logs::LogGroup",
             "Properties" : {
             }
 		},
 		"LxAuthLogSub" : {
-			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
+			"DependsOn" : ["LxAuthLog"],
 			"Type" : "AWS::Logs::SubscriptionFilter",
-            "Condition" : "Subscribe",
 			"Properties" : {
 				"DestinationArn" : { "Fn::GetAtt" : ["LogStream","Arn"] },
 				"FilterPattern" : "",
@@ -385,14 +374,14 @@
 		},
 
 		"LxDockerLog" : {
+			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
             "Type" : "AWS::Logs::LogGroup",
             "Properties" : {
             }
 		},
 		"LxDockerLogSub" : {
-			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
+			"DependsOn" : ["LxDockerLog"],
 			"Type" : "AWS::Logs::SubscriptionFilter",
-            "Condition" : "Subscribe",
 			"Properties" : {
 				"DestinationArn" : { "Fn::GetAtt" : ["LogStream","Arn"] },
 				"FilterPattern" : "",
