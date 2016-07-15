@@ -305,6 +305,7 @@
                     "wget -qO- https://get.docker.com/ | sh\n",
 
 					{"Fn::If":["HasStateSnapshot","","mkfs -t ext4 /dev/xvdb\n"]},
+					"umount /mnt/\n",
 					"mkdir /mnt/xvdb\n",
 					"mount -t ext4 /dev/xvdb /mnt/xvdb\n",
 					"chown -R 1000 /mnt/xvdb\n",
@@ -396,21 +397,10 @@
 							"C:\\cfn\\bin\\java-installer.exe": {
                                 "source": { "Ref": "JavaWindowsInstaller" }
                             },
-							"C:\\cfn\\scripts\\BaseTask.xml.original": {
-                                "source" : { "Fn::Join" : ["", [
-									{"Ref":"TemplateBaseUrl"},"BaseTask.xml.original"
-								]]},
-								"authentication" : {"Fn::If":["HasDeploymentBucketMp",
-									"DeploymentAccess", {"Ref":"AWS::NoValue"}
-								]}
-                            },
 							"C:\\cfn\\scripts\\Install-JenkinsTask.ps1": {
-                                "source" : { "Fn::Join" : ["", [
-									{"Ref":"TemplateBaseUrl"},"Install-JenkinsTask.ps1"
-								]]},
-								"authentication" : {"Fn::If":["HasDeploymentBucketMp",
-									"DeploymentAccess", {"Ref":"AWS::NoValue"}
-								]}
+                                "content": {"Fn::Join": ["",[
+                                    
+                                ]]}
                             },
 							"C:\\cfn\\scripts\\Install-VisualStudio.ps1": {
                                 "content": {"Fn::Join": ["\n",[
