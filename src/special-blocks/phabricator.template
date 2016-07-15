@@ -105,7 +105,8 @@
 		},
 		"PvtSubnet1Id": {
 			"Description" : "Subnet to run HA web cluster on. [nat-enabled.resources.Subnet1]",
-			"Type": "AWS::EC2::Subnet::Id"
+			"Type": "String",
+			"Default" : ""
 		},
 		"PublicSubnet1Id": {
 			"Description" : "Subnet to run HA web cluster on. [webserver.resources.Subnet1]",
@@ -116,20 +117,35 @@
 			"Type": "AWS::EC2::VPC::Id"
 		},
 
-		"PhabricatorCommit": {
-			"Description" : "Hash of the git commit to checkout.",
-			"Type": "String",
-			"Default": "04bf04d783db9019c746d7c787bdace8660afe62"
+		
+		"PhabricatorContainer": {
+			"Description": "Phabricator container name with tag.",
+			"Default": "sleepersmith/aws-lego-phabricator:v0.1.0",
+			"Type": "String"
 		},
-		"LibphutilCommit": {
-			"Description" : "Hash of the git commit to checkout.",
-			"Type": "String",
-			"Default": "672c0f7d5da9be6cda619428a9da3b91a670ea2f"
+
+		"SesRegion": {
+			"Description": "Region from which SES is sent.",
+			"Default": "us-east-1",
+			"Type": "String"
 		},
-		"ArcanistCommit": {
-			"Description" : "Hash of the git commit to checkout.",
+
+		"CwlUbuntuAgentDocker": {
+			"Description": "Name of cluster. This is used for discovery.",
 			"Type": "String",
-			"Default": "64d03ff68bf2ff4ef99186472704df8aface9ef3"
+			"Default": "sleepersmith/aws-lego-awscwlagent-ubuntu:v0.2.0"
+		},
+		"CwlLinuxParams" : {
+			"Description": "Environment variables for syslog and authlog cwl group names [s3-aws-logs.outputs.LxDockerLogParams]",
+			"Type": "String"
+		},
+		"CwlDockerParams" : {
+			"Description": "Docker log driver params [s3-aws-logs.outputs.DockerCwlParams]",
+			"Type": "String"
+		},
+		"CwlPolicy" : {
+			"Description": "Managed policy for linux logging. [s3-aws-logs.resources.LinuxLogPolicy]",
+			"Type": "String"
 		}
 	},
 
@@ -229,150 +245,8 @@
 		"PhabricatorWeb" : {
 			"Type" : "AWS::EC2::Instance",
 			"DependsOn" : "Database",
-			"Metadata" : {
-				"AWS::CloudFormation::Init" : {
-					"configSets": {
-						"config": [
-							"download-files",
-							"configure"
-						]
-					},
-					"download-files" : {
-						"sources": {
-							"/usr/local/libphutil" : {"Fn::Join": ["", [
-								"https://github.com/phacility/libphutil/tarball/", {"Ref": "LibphutilCommit"}
-							]]},
-							"/usr/local/arcanist" : {"Fn::Join": ["", [
-								"https://github.com/phacility/arcanist/tarball/", {"Ref": "ArcanistCommit"}
-							]]},
-							"/usr/local/phabricator" : {"Fn::Join": ["", [
-								"https://github.com/phacility/phabricator/tarball/", {"Ref": "PhabricatorCommit"}
-							]]}
-						}
-					},
-					"configure" : {
-						"files" : {
-							"/usr/local/mount-disk.sh" : {
-								"content" : { "Fn::Join" : ["\n", [
-									"#!/bin/bash",
-									{"Fn::If":["HasRepoSnapshot","","mkfs -t ext3 /dev/xvdb"]},
-									"sudo mkdir /mnt/xvdb",
-									"sudo mount -t ext3 /dev/xvdb /mnt/xvdb"
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							},
-							"/usr/local/phabricator/bin/configure.sh" : {
-								"content" : { "Fn::Join" : ["", [
-									"#!/bin/bash\n",
-									"./config set phd.user daemon-user\n",
-									"./config set phabricator.timezone ", {"Ref": "PhabTimezone"}, "\n",
-									"./config set diffusion.allow-http-auth true\n",
-									"./config set pygments.enabled true\n",
-									"./config set metamta.mail-adapter PhabricatorMailImplementationAmazonSESAdapter\n",
-									"./config set metamta.default-address ", {"Ref": "PhabMailAddress"}, "\n",
-									"./config set amazon-ses.access-key ", { "Ref": "PhabricatorServiceAccountKeySecret" }, "\n",
-									"./config set amazon-ses.secret-key ", { "Fn::GetAtt": ["PhabricatorServiceAccountKeySecret", "SecretAccessKey"] }, "\n",
-									"./config set repository.default-local-path /mnt/xvdb\n",
-									"./config set mysql.user ", {"Ref":"DbUsername"}, "\n",
-									"./config set mysql.pass ", {"Ref":"DbPassword"}, "\n",
-									"./config set mysql.host ", {"Fn::GetAtt" : [ "Database", "Endpoint.Address"]},"\n",
-									"./config set phabricator.base-uri \"https://", { "Ref": "Hostname" }, "/\""
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							},
-							"/usr/local/phabricator/misc.sh" : {
-								"content" : { "Fn::Join" : ["", [
-									"#!/bin/bash\n",
-									"openssl req -nodes -x509 -newkey rsa:4096 -days 35600 -sha256 ",
-										"-keyout private.key -out certificate.crt ",
-										"-subj \"/C=AU/ST=NSW/L=Sydney/O=BitClouded/CN=", { "Ref": "Hostname" }, "\"\n",
-									"pip install pygments\n",
-									"ln -s /usr/lib/git-core/git-http-backend /usr/local/phabricator/support/bin/git-http-backend\n",
-									"./bin/storage upgrade -f\n",
-									"echo \"www-data ALL=(daemon-user) SETENV: NOPASSWD: /usr/lib/git-core/git-http-backend, /usr/bin/hg\" >> /etc/sudoers\n",
-									"echo \"opcache.validate_timestamps=0\" >> /etc/php5/apache2/php.ini\n",
-									"sed -i 's/post_max_size = .*/post_max_size = 50M/' /etc/php5/apache2/php.ini\n",
-									"a2enmod rewrite\n",
-									"a2enmod ssl\n",
-									"a2dissite 000-default\n",
-									"a2ensite phabricator\n",
-									"service apache2 restart\n"
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							},
-							"/usr/local/phabricator/setup-phd.sh" : {
-								"content" : { "Fn::Join" : ["\n", [
-									"#!/bin/bash",
-									"useradd daemon-user",
-									"mkdir /home/daemon-user",
-									"chown daemon-user /home/daemon-user",
-									"chown daemon-user /mnt/xvdb/ -R",
-									"sudo -iu daemon-user /usr/local/phabricator/bin/phd start"
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							},
-							"/etc/apache2/sites-available/phabricator.conf" : {
-								"content" : { "Fn::Join" : ["", [
-									"<VirtualHost *:80>\n",
-										"ServerName ", { "Ref": "Hostname" }, "\n",
-										"Redirect permanent / https://", { "Ref": "Hostname" }, "/\n",
-									"</VirtualHost>\n",
-									"<VirtualHost *:443>\n",
-										"ServerName ", { "Ref": "Hostname" }, "\n",
-										"SSLCertificateFile \"/usr/local/phabricator/certificate.crt\"\n",
-										"SSLCertificateKeyFile \"/usr/local/phabricator/private.key\"\n",
-										"DocumentRoot /usr/local/phabricator/webroot\n",
-										"SSLEngine on\n",
-										"RewriteEngine on\n",
-										"RewriteRule ^/rsrc/(.*)     -                       [L,QSA]\n",
-										"RewriteRule ^/favicon.ico   -                       [L,QSA]\n",
-										"RewriteRule ^(.*)$          /index.php?__path__=$1  [B,L,QSA]\n",
-									"</VirtualHost>\n",
-									"<Directory \"/usr/local/phabricator/webroot\">\n",
-										"Require all granted\n",
-									"</Directory>"
-								]]},
-								"mode"   : "000755",
-								"owner"  : "ubuntu",
-								"group"  : "ubuntu"
-							}
-						},
-						"commands" : {
-							"0-mount-disk" : {
-								"command" : "./mount-disk.sh",
-								"cwd" : "/usr/local"
-							},
-							"1-misc-configs" : {
-								"command" : "./configure.sh",
-								"cwd" : "/usr/local/phabricator/bin"
-							},
-							"3-dbupsert" : {
-								"command" : "./misc.sh",
-								"cwd" : "/usr/local/phabricator"
-							},
-							"4-start-phd" : {
-								"command" : "./setup-phd.sh",
-								"cwd" : "/usr/local/phabricator"
-							},
-							"10-signal" : {
-								"command" : {"Fn::Join": ["",[
-									"/usr/local/bin/cfn-signal -e 0 -r \"Webserver setup complete\" '", { "Ref" : "WaitHandle" }, "'"
-								]]},
-								"cwd" : "/usr/local/phabricator"
-							}
-						}
-					}
-				}
-			},
 			"Properties": {
+				"IamInstanceProfile" : {"Ref":"WebServersInstanceProfile"},
 				"InstanceType" : { "Ref" : "WebInstanceTyp" },
 				"KeyName" : { "Ref" : "KeyPairName" },
 				"ImageId" : { "Ref" : "UbuntuAmi" },
@@ -390,12 +264,46 @@
 				}],
 				"UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
 					"#!/bin/bash\n",
-					"apt-get update\n",
-					"apt-get -y install python-setuptools python-pip\n",
-					"apt-get -y install git mercurial subversion apache2 dpkg-dev\n",
-					"apt-get -y install php5 php5-mysql php5-gd php5-dev php5-curl php-apc php5-cli php5-json\n",
-					"easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
-					"cfn-init --region ", { "Ref" : "AWS::Region" }," -s ", { "Ref" : "AWS::StackId" }, " -r PhabricatorWeb -c config"
+                    "ifconfig eth0 mtu 1500\n",
+                    "wget -qO- https://get.docker.com/ | sh\n",
+
+					{"Fn::If":["HasRepoSnapshot","", "mkfs -t ext4 /dev/xvdb\n"]},
+					"umount /mnt/\n",
+					"mkdir /mnt/xvdb\n",
+					"mount -t ext4 /dev/xvdb /mnt/xvdb\n",
+					{"Fn::If":["HasRepoSnapshot","", {"Fn::Base64":{"Fn::Join":["",[
+						"mkdir /mnt/xvdb/ssl/ && cd /mnt/xvdb/ssl\n",
+						"openssl req -nodes -x509 -newkey rsa:4096 -days 35600 -sha256 ",
+							"-keyout private.key -out certificate.crt -subj ",
+							"\"/C=AU/ST=NSW/L=Sydney/O=BitClouded/CN=", {"Ref":"Hostname"}, "\"\n"
+					]]}}]},
+					"chown -R 1000 /mnt/xvdb\n",
+
+					"ECID=$(curl http://instance-data/latest/meta-data/instance-id)\n",
+					"CWLA=cwlagent_$ECID\n",
+					"docker run -d --restart=always ",
+						"--name $CWLA --log-opt awslogs-stream=$CWLA ",
+						"-v /var/log:/var/log-host:ro ",
+						{"Ref":"CwlLinuxParams"}," ",
+						{"Ref":"CwlDockerParams"}," ",
+						{"Ref":"CwlUbuntuAgentDocker"},"\n",
+					"docker run -d --restart=always --name cwlcron ",
+						{"Ref":"CwlUbuntuAgentDocker"}," cron\n",
+
+					"PHABRICATOR=phabricator_$ECID\n",
+                    "docker run -d --restart=always -p 80:80 -p 443:443 -v /mnt/xvdb:/home/local/storage ",
+						"--name $PHABRICATOR --log-opt awslogs-stream=$PHABRICATOR ",
+						{"Ref":"CwlLinuxParams"},
+						" -e PHAB_HOSTNAME=", {"Ref":"Hostname"},
+						" -e DB_ENDPOINT=", {"Fn::GetAtt" : [ "Database", "Endpoint.Address"]},
+						" -e DB_USERNAME=", {"Ref":"DbUsername"},
+						" -e DB_PASSWORD=", {"Ref":"DbPassword"},
+						" -e MAIL_ADDRESS=", {"Ref":"PhabMailAddress"},
+						" -e IAM_KEY=", {"Ref":"PhabricatorServiceAccountKeySecret"},
+						" -e IAM_SECRET=", { "Fn::GetAtt": ["PhabricatorServiceAccountKeySecret", "SecretAccessKey"] },
+						" -e SES_REGION=", {"Ref":"SesRegion"},
+						" -e PHAB_TIMEZONE=", {"Ref":"PhabTimezone"}, " ",
+                        {"Ref":"PhabricatorContainer"}, "\n"
 				]]}},
 				"BlockDeviceMappings" : [
 					{
@@ -407,18 +315,6 @@
 					{"Device": "xvdb", "VolumeId" : {"Ref": "RepoDisk"}}
 				],
 				"Tags" : [{"Key": "Name", "Value" : "Phabricator"}]
-			}
-		},
-		"WaitHandle" : {
-			"Type" : "AWS::CloudFormation::WaitConditionHandle"
-		},
-
-		"WaitCondition" : {
-			"Type" : "AWS::CloudFormation::WaitCondition",
-			"DependsOn" : "PhabricatorWeb",
-			"Properties" : {
-				"Handle" : {"Ref" : "WaitHandle"},
-				"Timeout" : "1200"
 			}
 		},
 
@@ -460,6 +356,33 @@
 				"FromPort" : "3306",
 				"GroupId" : { "Ref" : "DatabaseSg" },
 				"SourceSecurityGroupId" : { "Ref" : "WebServerSg" }
+			}
+		},
+
+		"WebServersRole" : {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [{
+						"Effect": "Allow",
+						"Principal": {
+							"Service": [ "ec2.amazonaws.com" ]
+						},
+						"Action": [ "sts:AssumeRole" ]
+					}]
+				},
+				"Path": "/devops/phabricator/",
+				"ManagedPolicyArns" : [
+					{"Ref":"CwlPolicy"}
+				]
+			}
+		},
+		"WebServersInstanceProfile" : {
+			"Type": "AWS::IAM::InstanceProfile",
+			"Properties": {
+				"Path": "/devops/phabricator/",
+				"Roles": [{"Ref" : "WebServersRole"}]
 			}
 		}
 	},
