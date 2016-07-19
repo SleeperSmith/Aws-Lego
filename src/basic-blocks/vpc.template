@@ -3,6 +3,10 @@
 
 	"Description" : "A simple empty VPC.",
 
+	"Metadata" : {
+		"DefaultName" : "Vpc"
+	},
+
 	"Parameters" : {
 		"VpcPrefix" : {
 			"Description" : "Prefix for the VPC",
@@ -13,6 +17,14 @@
 			"Description" : "Display name for the VPC",
 			"Type" : "String",
 			"Default" : "Lego"
+		},
+		"FlowLogRole" : {
+			"Description" : "Subnet suffix to be concatenated with the VPC prefix. [s3-aws-logs.outputs.FlowLogRoleArn]",
+			"Type" : "String"
+		},
+		"FlowLogGroup" : {
+			"Description" : "Subnet suffix to be concatenated with the VPC prefix. [s3-aws-logs.resources.VpcTrafficLog]",
+			"Type" : "String"
 		}
 	},
 
@@ -41,6 +53,17 @@
 				"Tags" : [{ "Key" : "Name" , "Value" : { "Ref" : "VpcName" } }],
 				"EnableDnsHostnames" : "true",
 				"EnableDnsSupport" : "true"
+			}
+		},
+
+		"FlowLog" : {
+			"Type" : "AWS::EC2::FlowLog",
+			"Properties" : {
+				"DeliverLogsPermissionArn" : { "Ref" : "FlowLogRole" },
+				"LogGroupName" : { "Ref" : "FlowLogGroup" },
+				"ResourceId" : { "Ref" : "Vpc" },
+				"ResourceType" : "VPC",
+				"TrafficType" : "ALL"
 			}
 		},
 

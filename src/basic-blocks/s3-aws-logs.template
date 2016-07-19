@@ -338,7 +338,39 @@
 				"RoleArn" : { "Fn::GetAtt" : [ "LogStreamRole", "Arn" ] }
 			}
 		},
-
+		"VpcTrafficLogRole" : {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [{
+						"Effect": "Allow",
+						"Principal": {
+							"Service": "vpc-flow-logs.amazonaws.com"
+						},
+						"Action": "sts:AssumeRole"
+					}]
+                },
+                "Path": "/aws-logs/vpc/",
+                "Policies": [{
+                    "PolicyName": "root",
+                    "PolicyDocument": {
+                        "Version": "2012-10-17",
+                        "Statement": [{
+                            "Effect": "Allow",
+                            "Action": [
+							    "logs:CreateLogStream",
+								"logs:DescribeLogGroups",
+								"logs:DescribeLogStreams",
+								"logs:PutLogEvents"
+							],
+                            "Resource": { "Fn::GetAtt" : ["VpcTrafficLog", "Arn"] }
+                        }]
+                    }
+                }]
+            }
+        },
+		
         "LxSysLog" : {
 			"DependsOn" : ["LogStream", "LogStreamRole", "LogStreamRolePolicy"],
             "Type" : "AWS::Logs::LogGroup",
@@ -490,6 +522,11 @@
 				"-e SYSLOG=", {"Ref":"LxSysLog"}, " ",
 				"-e AUTHLOG=", {"Ref":"LxAuthLog"}
 			]]}
+		},
+		"FlowLogRoleArn" : {
+			"Value" : 
+			{ "Fn::GetAtt" : [ "VpcTrafficLogRole", "Arn" ]}
+			
 		}
 	}
 }
