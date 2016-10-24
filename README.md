@@ -3,6 +3,9 @@ Aws-Lego
 
 Status: Alpha
 
+Please note this project has now been moved to
+https://github.com/Bit-Clouded/Glenlivet
+
 A set of templates designed to unify common AWS deployment topology. The common use cases it currently aim to facilitate includes:
 - Web Hosting with only ELB exposed.
 - Database with isolated subnets.
